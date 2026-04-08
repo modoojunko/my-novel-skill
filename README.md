@@ -31,9 +31,15 @@
 |------|------|------|
 | `init` | 初始化小说项目 | "新建一个玄幻小说项目" |
 | `propose` | 创建创作意图 | "给第一章写个提案" |
+| `define` | 管理设定库 | "创建人物张三"、"查看所有设定" |
 | `volume` | 管理卷结构 | "查看所有卷的状态" |
 | `outline` | 编辑大纲 | "写第一卷前5章的章节大纲" |
 | `write` | 写正文 | "开始写第1章" |
+| `review` | 人机差异对比 | "对比AI写的和我改的" |
+| `learn` | 风格学习引擎 | "从修改中学到风格" |
+| `style` | 风格档案管理 | "查看学到的风格" |
+| `stats` | 学习进度统计 | "看看学得怎么样了" |
+| `update-specs` | 自动更新设定 | "分析章节检测新设定" |
 | `archive` | 定稿归档 | "第1章写完了，归档" |
 | `status` | 查看进度 | "写到哪了" |
 
@@ -64,9 +70,40 @@
 my-novel-skill/
   SKILL.md      # Skill 定义（AI 读取）
   story.py      # CLI 入口
-  src/          # CLI 模块（init/propose/volume/outline/write/archive/status）
+  src/          # CLI 模块
   install.ps1   # Windows 安装脚本
   install.sh    # Linux/macOS 安装脚本
+```
+
+### CLI 模块
+
+| 模块 | 功能 |
+|------|------|
+| `init` | 初始化小说项目 |
+| `propose` | 创建创作意图 |
+| `define` | 人物卡/世界观管理 |
+| `volume` | 卷结构管理 |
+| `outline` | 编辑大纲 |
+| `write` | 写作模式（生成 Agent Prompt） |
+| `review` | 人机差异对比 |
+| `learn` | 风格学习引擎 |
+| `style` | 风格档案管理 |
+| `stats` | 学习进度+字数统计 |
+| `update_specs` | 写作后自动更新设定 |
+| `archive` | 定稿归档 |
+| `status` | 项目状态 |
+
+## AI 协作写作流程
+
+```
+1. story:write 5        # 生成 Agent Prompt
+2. AI Agent 生成内容     # 基于 Prompt 创作
+3. story:review 5 --ai <文件>  # 导入 AI 内容
+4. 用户修改章节         # 人机协作
+5. story:review 5       # 对比差异
+6. story:learn 5        # 学习用户风格
+7. story:update-specs 5 # 检测新设定并更新
+8. story:stats          # 查看学习进度
 ```
 
 ## 许可
