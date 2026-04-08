@@ -144,6 +144,7 @@ flowchart LR
 | `story:learn` | 风格学习引擎 | `[章节号] [--force]` |
 | `story:style` | 风格档案管理 | `[--prompts] [--full] [--reset]` |
 | `story:stats` | 学习进度+字数统计 | `[--words] [--learning] [--trend] [--export FILE]` |
+| `story:update-specs` | 写作后更新设定 | `[章节] [--auto] [--view] [-v 卷号]` |
 | `story:archive` | 定稿归档 | `[章节号] [--preview] [--dry-run]` |
 | `story:status` | 查看项目状态 | `[--json]` |
 
@@ -893,7 +894,38 @@ python {STORY_DIR}/story.py stats --export report.json
 
 ---
 
-## 工作流 10：archive（定稿归档）[PROCEDURE]
+## 工作流 10：update-specs（写作后自动更新设定）[PROCEDURE]
+
+分析章节内容，检测新人物、地点、世界观设定并添加到设定库。
+
+### 触发条件
+
+- 写完章节后说"更新设定"、"检测新角色"
+- 写作流程最后一步（推荐）
+
+### 执行步骤
+
+```bash
+# 分析章节，查看检测到的新设定
+python {STORY_DIR}/story.py update-specs 5
+
+# 自动添加所有检测到的设定
+python {STORY_DIR}/story.py update-specs 5 --auto
+```
+
+### 检测内容
+
+| 类型 | 检测方式 | 示例 |
+|------|---------|------|
+| 人物 | 对话中的姓名、POV描述 | "张三说"、"XX见" |
+| 地点 | 来到/走进/位于 + 地点 | "来到京城"、"位于山巅" |
+| 组织 | 门/派/盟/宗 | "青云门"、"天魔宗" |
+| 物品 | 剑/刀/神器/宝物 | "赤霄剑"、"神农鼎" |
+| 能力 | 能力/功法 | "御剑术"、"九阳神功" |
+
+---
+
+## 工作流 11：archive（定稿归档）[PROCEDURE]
 
 章节写作完成后，将正文和相关文件归档，记录变更。
 
@@ -947,7 +979,7 @@ ARCHIVE/{日期}-chapter-NNN/
 
 ---
 
-## 工作流 11：status（查看项目状态）[PROCEDURE]
+## 工作流 12：status（查看项目状态）[PROCEDURE]
 
 展示小说项目的整体进度和状态。
 

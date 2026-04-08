@@ -12,9 +12,10 @@ from . import stats
 from . import archive
 from . import status
 from . import define
+from . import update_specs
 
 __all__ = [
     'init', 'propose', 'volume', 'outline',
     'write', 'review', 'learn', 'style', 'stats',
-    'archive', 'status', 'define'
+    'archive', 'status', 'define', 'update_specs'
 ]

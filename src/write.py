@@ -451,6 +451,7 @@ def show_write_guide():
 - 用 story:learn <章节> 从修改中学习风格
 - 用 story:style 查看当前风格档案
 - 用 story:stats 查看学习进度
+- 用 story:update-specs <章节> 检测新设定并更新文档 [推荐]
 """)
 
 
