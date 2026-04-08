@@ -1,0 +1,12 @@
+# Publish only SKILL.md + story.py + src/
+# History references (not part of the skill runtime)
+a-novel-process/
+OpenSpec/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
