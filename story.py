@@ -12,7 +12,7 @@ from pathlib import Path
 # 添加 src 目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src import init, propose, volume, outline, write, archive, status
+from src import init, propose, volume, outline, write, review, learn, style, stats, archive, status, define
 
 def show_banner():
     """显示横幅"""
@@ -37,7 +37,11 @@ def show_help():
   define    管理设定库
   volume    卷管理（初始化/查看/批量操作）
   outline   编辑大纲
-  write     写作模式
+  write     写作模式（生成 Agent Prompt）
+  review    人机差异对比与审核
+  learn     风格学习引擎
+  style     风格档案管理
+  stats     学习进度统计
   archive   定稿归档
   status    查看项目状态
 
@@ -48,14 +52,29 @@ def show_help():
   story:volume --init-all      # 初始化所有卷
   story:outline --list         # 列出大纲
   story:outline --init-chapters 1  # 初始化卷1的章节大纲
-  story:write 1                # 开始写第一章
+  story:write 1                # 生成第1章 Agent Prompt
+  story:review 1 --ai ai.md    # 导入AI内容并对比差异
+  story:learn 1                # 学习第1章风格
+  story:style                  # 查看风格档案
+  story:stats                  # 查看学习进度
   story:archive 1              # 归档第一章
   story:status                 # 查看状态
 
+AI 协作写作流程：
+  1. story:write 5             # 生成 Agent Prompt
+  2. Agent 收到 Prompt → 生成内容
+  3. story:review 5 --ai <文件>  # 导入 AI 内容
+  4. 用户修改章节文件
+  5. story:review 5            # 对比差异
+  6. story:learn 5             # 学习风格
+  7. story:stats               # 查看进度
+
 查看命令帮助：
-  story:init --help
-  story:propose --help
-  等等...
+  story:write --help
+  story:review --help
+  story:learn --help
+  story:style --help
+  story:stats --help
 """)
 
 def main():
@@ -73,9 +92,13 @@ def main():
         'volume': volume,
         'outline': outline,
         'write': write,
+        'review': review,
+        'learn': learn,
+        'style': style,
+        'stats': stats,
         'archive': archive,
         'status': status,
-        'define': None,  # 待实现
+        'define': define,
     }
 
     # 别名
@@ -84,6 +107,10 @@ def main():
         'p': 'propose',
         'v': 'volume',
         'w': 'write',
+        'r': 'review',
+        'l': 'learn',
+        't': 'style',  # t for style (tè色)
+        'u': 'stats',  # u for usage/stats
         'a': 'archive',
         'o': 'outline',
         'i': 'init',

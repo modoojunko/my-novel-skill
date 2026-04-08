@@ -57,6 +57,69 @@ flowchart TD
 
 **兜底规则**：用户提到"小说"但没有具体指令 -> 运行 `story:status` 展示当前项目状态。
 
+## AI 协作写作工作流
+
+> 核心理念：**Agent 写 → 人改 → Agent 学 → 减少修改**
+>
+> 这个 skill 是给 AI Agent 用的，Agent 本身有大模型能力。skill 提供结构化的 prompt 模板、差异分析、风格学习，让 Agent 的输出越来越符合用户的写作风格。
+
+### 完整工作流
+
+```mermaid
+flowchart LR
+    A[story:write 5] --> B[生成 Agent Prompt]
+    B --> C[Agent 生成内容]
+    C --> D[story:review --ai <文件>]
+    D --> E[用户修改]
+    E --> F[story:review]
+    F --> G[差异分析]
+    G --> H[story:learn]
+    H --> I[提取风格模式]
+    I --> J[更新 STYLE/prompts/]
+    J --> K[下次 write 更精准]
+    K --> C
+```
+
+### 工作流详解
+
+| 阶段 | 命令 | 说明 |
+|------|------|------|
+| 1. 生成 Prompt | `story:write 5 --show` | 生成 Agent 写作 Prompt 模板 |
+| 2. AI 生成 | Agent 收到 Prompt | Agent 使用内置大模型生成内容 |
+| 3. 导入内容 | `story:review 5 --ai <文件>` | 导入 AI 生成的内容 |
+| 4. 用户修改 | 在章节文件中修改 | 人工作为审核者和修改者 |
+| 5. 差异分析 | `story:review 5` | 对比 AI vs 人的差异，计算修改率 |
+| 6. 风格学习 | `story:learn 5` | 从修改中提取风格模式 |
+| 7. 查看进度 | `story:stats` | 查看学习进度和修改率趋势 |
+
+### 目录结构变更
+
+```
+{项目根}/
+  STYLE/                    # [NEW] 风格学习数据
+  ├── profile.json          # 用户风格档案
+  ├── prompts/              # [NEW] 可复用的 prompt 片段
+  │   ├── vocabulary.md     # 词汇偏好
+  │   ├── sentence.md       # 句式偏好
+  │   ├── pacing.md         # 节奏偏好
+  │   └── full_guide.md     # 完整风格指南
+  └── history/              # 修改历史记录
+      └── chapter-005/
+          ├── ai_raw.md     # AI 原始生成
+          ├── human_final.md # 人的最终版本
+          └── analysis.json  # 差异分析结果
+```
+
+### 风格学习机制
+
+**不依赖 fine-tune**，采用 Prompt Engineering 方案：
+
+1. **差异提取**：分析人修改了哪些词/句式
+2. **模式生成**：生成可注入 Agent Prompt 的 Markdown 片段
+3. **渐进优化**：学习越多，Agent 输出越接近用户风格
+
+**目标**：修改率从初始 50% 逐步降低到 15%
+
 ## 前置检查
 
 除 `init` 外，所有工作流先执行：
@@ -73,13 +136,18 @@ flowchart TD
 |------|------|---------|
 | `story:init` | 初始化小说项目 | `[--non-interactive]` |
 | `story:propose` | 创建创作意图 | `[目标] [标题]` |
+| `story:define` | 设定库管理 | `[character/world] [名称] [--list/--view/--edit/--delete]` |
 | `story:volume` | 卷管理 | `[卷号] [--init] [--init-all] [--list]` |
 | `story:outline` | 编辑大纲 | `[target] [--list] [--init-chapters N]` |
 | `story:write` | 写作模式 | `[章节号] [--new] [--continue N]` |
+| `story:review` | 人机差异对比 | `[章节号] [--ai FILE] [--stat] [--diff]` |
+| `story:learn` | 风格学习引擎 | `[章节号] [--force]` |
+| `story:style` | 风格档案管理 | `[--prompts] [--full] [--reset]` |
+| `story:stats` | 学习进度+字数统计 | `[--words] [--learning] [--trend] [--export FILE]` |
 | `story:archive` | 定稿归档 | `[章节号] [--preview] [--dry-run]` |
 | `story:status` | 查看项目状态 | `[--json]` |
 
-别名：`s`->status, `p`->propose, `v`->volume, `w`->write, `a`->archive, `o`->outline, `i`->init
+别名：`s`->status, `p`->propose, `v`->volume, `w`->write, `a`->archive, `o`->outline, `i`->init, `r`->review, `l`->learn, `t`->style, `u`->stats
 
 ---
 
@@ -206,7 +274,148 @@ python {STORY_DIR}/story.py propose [目标] [标题]
 
 ---
 
-## 工作流 2：volume（卷管理）[PROCEDURE]
+## 工作流 2：define（设定库管理）[PROCEDURE]
+
+管理人物卡和世界观设定，统一存储在 `SPECS/` 目录下。
+
+### 触发条件
+
+- 用户说"人物"、"角色"、"设定"、"世界观"
+- 用户说"创建角色"、"添加设定"
+- 用户说"查看所有人物"
+
+### 执行步骤
+
+#### 人物管理
+
+```bash
+# 列出所有人物
+python {STORY_DIR}/story.py define character --list
+
+# 查看人物详情
+python {STORY_DIR}/story.py define character 张三 --view
+
+# 创建新人物（交互式）
+python {STORY_DIR}/story.py define character 张三
+
+# 编辑人物（打开编辑器）
+python {STORY_DIR}/story.py define character 张三 --edit
+
+# 删除人物（带确认和备份）
+python {STORY_DIR}/story.py define character 张三 --delete
+```
+
+#### 世界观管理
+
+```bash
+# 列出所有世界观设定
+python {STORY_DIR}/story.py define world --list
+
+# 查看世界观详情
+python {STORY_DIR}/story.py define world 地理 --view
+
+# 创建新世界观（交互式，需选择类别）
+python {STORY_DIR}/story.py define world 地理
+
+# 编辑世界观
+python {STORY_DIR}/story.py define world 地理 --edit
+
+# 删除世界观
+python {STODY_DIR}/story.py define world 地理 --delete
+```
+
+#### 搜索
+
+```bash
+# 全文搜索设定
+python {STORY_DIR}/story.py define --search 关键词
+```
+
+#### 概览
+
+```bash
+# 显示所有设定概览
+python {STORY_DIR}/story.py define
+```
+
+### 人物卡模板
+
+```markdown
+---
+name: 张三
+alias: 小三爷
+gender: 男
+age: 28
+occupation: 剑客
+status: 存活
+tags: [主角, 剑客]
+created: 2026-04-08
+modified: 2026-04-08
+---
+
+# 张三
+
+## 基本信息
+
+**别名/昵称**：小三爷
+**性别**：男
+**年龄**：28
+**职业/身份**：剑客
+**状态**：存活
+
+## 外观特征
+
+（描述外貌、穿着、标志性特征等）
+
+## 性格特点
+
+- **核心性格**：（如：冷静、果断、外冷内热）
+- **优点**：（如：善于观察、行动力强）
+- **缺点**：（如：不善表达、过于理性）
+- **口头禅/习惯**：（如有）
+
+## 背景故事
+
+（人物的前史、成长经历）
+
+## 人物关系
+
+- **家人**：（如有）
+- **挚友**：（如有）
+- **对手/敌人**：（如有）
+
+## 角色弧
+
+**起点**：（角色的初始状态）
+**转折点**：（经历什么事件）
+**终点**：（角色最终的成长/变化）
+
+## 本卷/本故事中的目标
+
+（当前故事中角色想要达成的目标）
+```
+
+### 世界观类别
+
+支持 9 种类别：
+- 地理（地理位置、地形、气候）
+- 历史（历史事件、时间线）
+- 社会（社会结构、制度、文化习俗）
+- 魔法/能力（魔法体系、超能力）
+- 科技（科技水平、特殊技术）
+- 生物（种族、怪物、特殊生物）
+- 物品（重要道具、武器、神器）
+- 组织（势力、门派、机构）
+- 其他
+
+### 文件存储
+
+- 人物：`SPECS/characters/{姓名}.md`
+- 世界观：`SPECS/world/{名称}.md`
+
+---
+
+## 工作流 3：volume（卷管理）[PROCEDURE]
 
 管理小说的卷结构：初始化、查看状态、批量操作。
 
@@ -243,7 +452,7 @@ python {STORY_DIR}/story.py volume 1               # 查看卷1状态
 
 ---
 
-## 工作流 3：outline（编辑大纲）[MIXED]
+## 工作流 4：outline（编辑大纲）[MIXED]
 
 大纲是写作的核心骨架。分为三个层级：总纲 -> 卷纲 -> 章节大纲。
 
@@ -310,7 +519,7 @@ python {STORY_DIR}/story.py outline 第5章                # 编辑第5章大纲
 
 ---
 
-## 工作流 4：write（写作模式）[MIXED]
+## 工作流 5：write（写作模式）[MIXED]
 
 正式写作阶段。为指定章节创建正文文件和任务清单，展示相关参考信息。
 
@@ -384,9 +593,307 @@ python {STORY_DIR}/story.py write [章节号]
 约 3000 字
 ```
 
+### write 命令增强：生成 Agent Prompt
+
+`story:write` 不再只是创建文件，而是生成结构化的 Agent Prompt 模板：
+
+```bash
+python {STORY_DIR}/story.py write 5 --show    # 显示完整 Prompt
+python {STORY_DIR}/story.py write 5 --prompt  # 仅显示 Prompt 部分
+python {STORY_DIR}/story.py write 5 --context # 仅显示上下文部分
+```
+
+**Agent Prompt 模板结构**：
+
+```markdown
+## 写作任务
+章节：第5章
+卷：第1卷「风起天南」
+POV：张三
+
+## 章节大纲
+[从 OUTLINE 读取]
+
+## 场景列表
+1. [开场] 场景描述 - POV:张三 - 约800字
+2. [发展] 场景描述 - POV:张三 - 约1200字
+...
+
+## 人物设定
+[从 SPECS 读取相关人物]
+
+## 世界观约束
+[从 SPECS/world 读取相关设定]
+
+## 风格指南
+[从 STYLE/prompts/ 读取最新模式]
+
+## 上章结尾
+[读取上一章最后 500 字]
+
+## 写作要求
+- 字数：约 3000 字
+- POV：必须保持张三视角
+- 禁止：[STYLE/avoid.md 中的内容]
+```
+
 ---
 
-## 工作流 5：archive（定稿归档）[PROCEDURE]
+## 工作流 6：review（人机差异对比）[PROCEDURE]
+
+AI 生成内容后，用户修改，然后进行差异对比。
+
+### 触发条件
+
+- 用户说"对比差异"、"查看修改"、"审核"
+- 用户完成了 AI 内容的修改
+
+### 执行步骤
+
+```bash
+# 导入 AI 生成的内容
+python {STORY_DIR}/story.py review 5 --ai content.md
+
+# 对比差异
+python {STORY_DIR}/story.py review 5
+
+# 仅显示统计
+python {STORY_DIR}/story.py review 5 --stat
+
+# 预览 diff 格式
+python {STORY_DIR}/story.py review 5 --diff
+```
+
+### 差异分析输出
+
+```
+═══════════════════════════════════════
+        第5章 差异分析报告
+═══════════════════════════════════════
+
+  基础统计
+  --------------------------------------------------
+  AI 生成字数：3200 字
+  用户修改字数：480 字
+  修改占比：15.0%
+
+  详细统计
+  --------------------------------------------------
+  新增：120 字 (3 处)
+  删除：80 字 (2 处)
+  替换：8 处
+  未改动：50 处
+
+  高频替换
+  --------------------------------------------------
+  "非常" -> "极其" (3次)
+  "他慢慢地" -> "他" (2次)
+
+  建议
+  --------------------------------------------------
+  [OK] 修改率很低，AI 写作质量很好！
+```
+
+---
+
+## 工作流 7：learn（风格学习引擎）[PROCEDURE]
+
+从审核历史中提取修改模式，生成可复用的风格 Prompt。
+
+### 触发条件
+
+- 用户说"学习风格"、"提取模式"
+- 完成了章节审核后
+
+### 执行步骤
+
+```bash
+# 学习单个章节
+python {STORY_DIR}/story.py learn 5
+
+# 学习所有审核过的章节
+python {STORY_DIR}/story.py learn
+
+# 强制重新学习
+python {STORY_DIR}/story.py learn --force
+```
+
+### 学习流程
+
+1. 读取 `STYLE/history/chapter-005/analysis.json`
+2. 提取词汇替换模式（高频词）
+3. 提取句式偏好（短句/长句）
+4. 提取节奏偏好（快/慢节奏）
+5. 更新 `STYLE/prompts/*.md` 文件
+
+### 生成的文件
+
+```markdown
+<!-- STYLE/prompts/vocabulary.md -->
+
+## 词汇偏好
+
+### 替换规则
+- "非常" -> "极其" / "格外"
+- "慢慢地" -> 删除或替换为具体动作
+- "说道" -> "开口" / "应道"
+
+### 避免词汇
+- 过度使用的形容词
+- 陈词滥调
+```
+
+---
+
+## 工作流 8：style（风格档案管理）[PROCEDURE]
+
+查看和管理已学习的风格档案。
+
+### 触发条件
+
+- 用户说"查看风格"、"风格档案"
+- 想了解 AI 学到了什么
+
+### 执行步骤
+
+```bash
+# 查看风格档案
+python {STORY_DIR}/story.py style
+
+# 查看可复用的 prompt 片段
+python {STORY_DIR}/story.py style --prompts
+
+# 查看完整风格指南
+python {STORY_DIR}/story.py style --full
+
+# 重置风格数据
+python {STORY_DIR}/story.py style --reset
+```
+
+### 风格档案输出
+
+```
+============================================================
+         风格档案
+============================================================
+
+  创建时间：2026-04-08
+  学习章节：3 章
+  平均修改率：32.5%
+  目标修改率：15.0%
+
+------------------------------------------------------------
+  风格档案路径：STYLE/profile.json
+  Prompt 片段：STYLE/prompts/
+------------------------------------------------------------
+```
+
+---
+
+## 工作流 9：stats（学习进度统计 + 字数统计）[PROCEDURE]
+
+展示 AI 写作学习进度、修改率趋势，以及实际写作字数统计。
+
+### 触发条件
+
+- 用户说"学习进度"、"修改率"、"统计"、"字数"
+- 想了解 AI 学得怎么样了
+- 想了解实际写作进度
+
+### 执行步骤
+
+```bash
+# 查看完整统计（字数 + 学习）
+python {STORY_DIR}/story.py stats
+
+# 仅显示字数统计
+python {STORY_DIR}/story.py stats --words
+
+# 仅显示学习进度
+python {STORY_DIR}/story.py stats --learning
+
+# 查看修改率趋势图
+python {STORY_DIR}/story.py stats --trend
+
+# 导出报告
+python {STORY_DIR}/story.py stats --export report.json
+```
+
+### 字数统计输出
+
+```
+============================================================
+              写作字数统计
+============================================================
+
+  已完成字数：125,600 字
+  目标字数：500,000 字
+  草稿字数：8,200 字（未完成）
+
+  总体进度：[██░░░░░░░░] 25.1%
+  差距：374,400 字
+
+  章节字数：
+  --------------------------------------------------
+  卷1 (15章, 125,600字)
+    ✓ 第1章  [██████████████] 8,200字
+    ✓ 第2章  [█████████████░] 7,800字
+    ...
+
+  写作效率：
+  --------------------------------------------------
+  平均每章：8,373 字
+  目标每章：5,000 字
+  效率比：167%
+```
+
+### 学习进度输出
+
+```
+============================================================
+             AI 写作学习进度
+============================================================
+
+  已学习章节：3 章
+  当前修改率：32.5%
+  目标修改率：15.0%
+
+  学习进度：[████░░░░░░] 35%
+
+  修改率趋势：
+  --------------------------------------------------
+  第1章 [████████████░░░░░░░░░░░░░░░░░░░░] 45.0% ☆
+  第2章 [██████████░░░░░░░░░░░░░░░░░░░░░░] 38.0% ☆
+  第3章 [████████░░░░░░░░░░░░░░░░░░░░░░░] 32.0% ★
+
+  建议：
+  --------------------------------------------------
+  → 继续学习 2-3 章，修改率将继续下降
+```
+
+### 趋势图输出
+
+```
+============================================================
+             修改率趋势
+============================================================
+
+  45.0% |███
+  40.0% |   ███
+  35.0% |       ████
+  30.0% |           ████
+  25.0% |
+  20.0% |
+  15.0% |                   █ target
+      ----------------------------------------
+             第1章  第2章  第3章
+
+  趋势分析：从 45.0% 到 32.0% (下降 ↓)
+```
+
+---
+
+## 工作流 10：archive（定稿归档）[PROCEDURE]
 
 章节写作完成后，将正文和相关文件归档，记录变更。
 
@@ -440,7 +947,7 @@ ARCHIVE/{日期}-chapter-NNN/
 
 ---
 
-## 工作流 6：status（查看项目状态）[PROCEDURE]
+## 工作流 11：status（查看项目状态）[PROCEDURE]
 
 展示小说项目的整体进度和状态。
 
@@ -524,7 +1031,7 @@ python {STORY_DIR}/story.py status [--json]
     volume-N/
       chapter-NNN.md                # 正文
       chapter-NNN.tasks.md          # 任务清单
-    draft/                          # 草稿
+    draft/                          # 草稿（AI 生成内容暂存）
   ARCHIVE/
     {日期}-chapter-NNN/
       final.md                      # 定稿
@@ -532,6 +1039,18 @@ python {STORY_DIR}/story.py status [--json]
       tasks.md                      # 归档时的任务
       delta-spec.md                 # 变更记录
       .meta.json                    # 归档元数据
+  STYLE/                            # [NEW] 风格学习数据
+    profile.json                    # 用户风格档案
+    prompts/                       # [NEW] 可复用的 prompt 片段
+      vocabulary.md                 # 词汇偏好
+      sentence.md                  # 句式偏好
+      pacing.md                    # 节奏偏好
+      full_guide.md               # 完整风格指南
+    history/                       # 修改历史记录
+      chapter-NNN/
+        ai_raw.md                  # AI 原始生成
+        human_final.md             # 人的最终版本
+        analysis.json              # 差异分析结果
   templates/                        # 写作模板
 ```
 
