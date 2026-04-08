@@ -13,9 +13,12 @@ from . import archive
 from . import status
 from . import define
 from . import update_specs
+from . import recall
+from . import export
 
 __all__ = [
     'init', 'propose', 'volume', 'outline',
     'write', 'review', 'learn', 'style', 'stats',
-    'archive', 'status', 'define', 'update_specs'
+    'archive', 'status', 'define', 'update_specs',
+    'recall', 'export'
 ]

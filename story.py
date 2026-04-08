@@ -12,7 +12,7 @@ from pathlib import Path
 # 添加 src 目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src import init, propose, volume, outline, write, review, learn, style, stats, archive, status, define, update_specs
+from src import init, propose, volume, outline, write, review, learn, style, stats, archive, status, define, update_specs, recall, export
 
 def show_banner():
     """显示横幅"""
@@ -45,6 +45,8 @@ def show_help():
   archive       定稿归档
   status        查看项目状态
   update-specs  写作后自动更新设定库
+  recall        章节回顾（查看摘要）
+  export        导出小说（txt/docx）
 
 示例：
   story:init                      # 初始化项目
@@ -54,12 +56,18 @@ def show_help():
   story:volume --init-all         # 初始化所有卷
   story:outline --list            # 列出大纲
   story:outline --init-chapters 1  # 初始化卷1的章节大纲
+  story:outline --expand 5        # 展开第5章场景细节
+  story:outline --swap 8 10       # 交换第8章和第10章大纲
   story:write 1                   # 生成第1章 Agent Prompt
   story:review 1 --ai ai.md       # 导入AI内容并对比差异
   story:learn 1                   # 学习第1章风格
+  story:recall 5                  # 查看第5章摘要
+  story:recall --recent 3         # 查看最近3章摘要
+  story:export 1-10               # 导出第1-10章
+  story:export --format docx      # 导出为 Word 文档
+  story:update-specs 5            # 分析第5章并更新设定库
   story:style                     # 查看风格档案
   story:stats                     # 查看学习进度
-  story:update-specs 1            # 分析第1章并更新设定库
   story:archive 1                  # 归档第一章
   story:status                    # 查看状态
 
@@ -70,15 +78,18 @@ AI 协作写作流程：
   4. 用户修改章节文件
   5. story:review 5            # 对比差异
   6. story:learn 5             # 学习风格
-  7. story:update-specs 5      # 检测并添加新设定 ← 新增!
-  8. story:stats               # 查看进度
+  7. story:update-specs 5      # 检测新设定 + 生成摘要 ← 新增!
+  8. story:recall 5           # 回顾本章摘要 ← 新增!
+  9. story:stats               # 查看进度
+  10. story:export 1-10        # 导出交稿 ← 新增!
 
 查看命令帮助：
   story:write --help
   story:review --help
   story:learn --help
-  story:style --help
-  story:stats --help
+  story:recall --help
+  story:export --help
+  story:outline --help
 """)
 
 def main():
@@ -104,6 +115,8 @@ def main():
         'status': status,
         'define': define,
         'update-specs': update_specs,
+        'recall': recall,
+        'export': export,
     }
 
     # 别名

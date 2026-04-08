@@ -262,14 +262,204 @@ def show_outline_tree(root, config):
 
     print()
 
+def expand_scene_outline(root, config, chapter_num, scene_num=None):
+    """
+    展开章节大纲中的场景细节。
+
+    Args:
+        chapter_num: 章节号
+        scene_num: 场景序号（可选，不指定则显示所有场景）
+
+    Returns:
+        展开后的场景详情文本
+    """
+    chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    chapter_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+
+    if not chapter_path.exists():
+        return None, f"章节大纲不存在: {chapter_path.name}"
+
+    content = chapter_path.read_text(encoding='utf-8')
+
+    # 解析场景列表
+    # 格式: 1. [开场] 场景描述 - POV:xxx - 约800字
+    scene_pattern = r'(\d+)\.\s*\[([^\]]+)\]\s*([^-]+?)\s*(?:-\s*(?:POV|POV人物):\s*([^\s-]+))?'
+    scenes = []
+
+    for match in re.finditer(scene_pattern, content):
+        scene_idx = int(match.group(1))
+        scene_type = match.group(2).strip()
+        scene_desc = match.group(3).strip()
+        pov = match.group(4).strip() if match.group(4) else ""
+
+        scenes.append({
+            'index': scene_idx,
+            'type': scene_type,
+            'description': scene_desc,
+            'pov': pov
+        })
+
+    if not scenes:
+        return None, "未找到场景列表，请确保大纲格式正确：\n  1. [开场] 场景描述 - POV:xxx"
+
+    # 如果指定了场景号，过滤
+    if scene_num is not None:
+        scenes = [s for s in scenes if s['index'] == scene_num]
+        if not scenes:
+            return None, f"未找到第 {scene_num} 个场景"
+
+    return scenes, None
+
+
+def format_expanded_scene(scene: dict) -> str:
+    """格式化展开后的场景详情"""
+    lines = []
+    lines.append(c('=' * 60, Colors.CYAN))
+    lines.append(c(f'  场景 {scene["index"]}：{scene["description"]}', Colors.BOLD))
+    lines.append(c('=' * 60, Colors.CYAN))
+    lines.append('')
+
+    lines.append(f"  {c('类型:', Colors.DIM)} {scene['type']}")
+    if scene['pov']:
+        lines.append(f"  {c('POV:', Colors.DIM)} {scene['pov']}")
+    lines.append('')
+
+    # 生成展开模板
+    lines.append(c('  📝 展开模板', Colors.YELLOW))
+    lines.append('  ' + '-' * 40)
+    lines.append('')
+    lines.append('  ** POV：{}'.format(scene['pov'] or '待定'))
+    lines.append('')
+    lines.append('  ** 地点：（待填充）')
+    lines.append('  ** 时间：（待填充）')
+    lines.append('  ** 预期字数：约 800-1500 字')
+    lines.append('')
+    lines.append('  ** 核心动作：')
+    lines.append('     - （动作1）')
+    lines.append('     - （动作2）')
+    lines.append('     - （动作3）')
+    lines.append('')
+    lines.append('  ** 情绪基调：（待填充）')
+    lines.append('')
+    lines.append('  ** 可能需要的对话：')
+    lines.append('     - （对话1）')
+    lines.append('     - （对话2）')
+    lines.append('')
+    lines.append('  ** 关键细节：')
+    lines.append('     - （细节1）')
+    lines.append('     - （细节2）')
+    lines.append('')
+    lines.append('  ** 与上下文的衔接：')
+    lines.append('     - 承接：（上一场景如何衔接）')
+    lines.append('     - 铺垫：（为下一场景埋下什么）')
+    lines.append('')
+
+    return '\n'.join(lines)
+
+
+def swap_chapter_outlines(root, config, chapter_a: int, chapter_b: int):
+    """
+    交换两个章节的大纲顺序。
+
+    注意：只交换大纲文件，不移动实际的章节内容。
+    """
+    chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
+
+    def get_paths(chapter_num):
+        vol_num = ((chapter_num - 1) // chapters_per) + 1
+        outline_dir = root / 'OUTLINE' / f'volume-{vol_num}'
+        return vol_num, outline_dir / f'chapter-{chapter_num:03d}.md'
+
+    # 获取两个章节的路径
+    vol_a, path_a = get_paths(chapter_a)
+    vol_b, path_b = get_paths(chapter_b)
+
+    # 检查文件是否存在
+    if not path_a.exists():
+        return False, f"第 {chapter_a} 章大纲不存在"
+    if not path_b.exists():
+        return False, f"第 {chapter_b} 章大纲不存在"
+
+    # 读取内容
+    content_a = path_a.read_text(encoding='utf-8')
+    content_b = path_b.read_text(encoding='utf-8')
+
+    # 交换内容，但保持章节编号不变
+    # 注意：这里不改变文件名的编号，因为大纲的编号是固定的
+    # 只是交换文件内容
+
+    # 创建临时文件
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, suffix='.md') as tmp:
+        tmp_path = Path(tmp.name)
+
+    try:
+        # 备份 A -> 临时
+        tmp_path.write_text(content_a, encoding='utf-8')
+        # B -> A
+        path_a.write_text(content_b, encoding='utf-8')
+        # 临时 -> B
+        path_b.write_text(tmp_path.read_text(encoding='utf-8'), encoding='utf-8')
+    finally:
+        # 删除临时文件
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+    return True, None
+
+
+def show_expand_help():
+    """显示 expand 功能帮助"""
+    print("""
+使用示例：
+  story:outline --expand 5           # 展开第5章所有场景
+  story:outline --expand 5 --scene 2 # 只展开第5章第2个场景
+
+场景格式要求：
+  章节大纲中需要包含场景列表，格式如下：
+    1. [开场] 张三来到青云门 - POV:张三
+    2. [发展] 张三遇见李四 - POV:李四
+
+  格式说明：
+    - 数字编号：场景序号
+    - [类型]：开场/发展/高潮/结尾 等
+    - 描述：场景的主要内容
+    - POV：视点人物（可选）
+""")
+
+
+def show_swap_help():
+    """显示 swap 功能帮助"""
+    print("""
+使用示例：
+  story:outline --swap 8 10          # 交换第8章和第10章的大纲
+
+注意：
+  - 只交换大纲文件的内容，不移动实际的章节内容文件
+  - 章节编号保持不变，只交换大纲中的具体计划
+  - 交换前请确认操作
+""")
+
+
 def main():
     import argparse
+    import re  # 添加 re 模块
 
     parser = argparse.ArgumentParser(description='编辑大纲')
     parser.add_argument('target', nargs='?', help='目标（meta/卷1/章节1）')
     parser.add_argument('--list', '-l', action='store_true', help='列出大纲结构')
     parser.add_argument('--init-chapters', type=int, metavar='VOLUME',
                         help='批量初始化指定卷的所有章节大纲')
+    # 新增：expand 功能
+    parser.add_argument('--expand', '-e', type=int, metavar='CHAPTER',
+                        help='展开场景细节')
+    parser.add_argument('--scene', '-s', type=int, metavar='N',
+                        help='指定要展开的场景序号')
+    # 新增：swap 功能
+    parser.add_argument('--swap', nargs=2, type=int, metavar=('A', 'B'),
+                        help='交换两个章节的大纲顺序')
 
     args = parser.parse_args()
 
@@ -305,6 +495,47 @@ def main():
         if skipped:
             print(f"  [--] 已跳过 {len(skipped)} 个已存在的章节")
 
+        print()
+        return
+
+    # --expand：展开场景细节
+    if args.expand:
+        chapter_num = args.expand
+        scene_num = args.scene
+
+        print(f"\n{c('[OUTLINE] 展开场景细节', Colors.CYAN)}")
+        print(f"  {c('章节:', Colors.DIM)} 第{chapter_num}章")
+        if scene_num:
+            print(f"  {c('场景:', Colors.DIM)} 第{scene_num}个")
+        print()
+
+        scenes, error = expand_scene_outline(root, config, chapter_num, scene_num)
+
+        if error:
+            print(f"  {c(f'[错误] {error}', Colors.RED)}")
+            show_expand_help()
+            sys.exit(1)
+
+        for scene in scenes:
+            output = format_expanded_scene(scene)
+            print(output)
+        return
+
+    # --swap：交换章节顺序
+    if args.swap:
+        chapter_a, chapter_b = args.swap
+
+        print(f"\n{c('[OUTLINE] 交换章节大纲', Colors.CYAN)}")
+        print(f"  {c('交换:', Colors.DIM)} 第{chapter_a}章 <-> 第{chapter_b}章")
+        print()
+
+        success, error = swap_chapter_outlines(root, config, chapter_a, chapter_b)
+
+        if not success:
+            print(f"  {c(f'[错误] {error}', Colors.RED)}")
+            sys.exit(1)
+
+        print(c(f"  ✅ 已交换第{chapter_a}章和第{chapter_b}章的大纲", Colors.GREEN))
         print()
         return
 

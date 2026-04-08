@@ -34,12 +34,16 @@
 | `define` | 管理设定库 | "创建人物张三"、"查看所有设定" |
 | `volume` | 管理卷结构 | "查看所有卷的状态" |
 | `outline` | 编辑大纲 | "写第一卷前5章的章节大纲" |
+| `outline --expand` | 展开场景细节 | "展开第5章的场景" |
+| `outline --swap` | 交换章节顺序 | "把第8章和第10章换一下" |
 | `write` | 写正文 | "开始写第1章" |
 | `review` | 人机差异对比 | "对比AI写的和我改的" |
 | `learn` | 风格学习引擎 | "从修改中学到风格" |
 | `style` | 风格档案管理 | "查看学到的风格" |
 | `stats` | 学习进度统计 | "看看学得怎么样了" |
 | `update-specs` | 自动更新设定 | "分析章节检测新设定" |
+| `recall` | 章节回顾 | "看看前面几章写了什么" |
+| `export` | 导出小说 | "导出1-10章发编辑" |
 | `archive` | 定稿归档 | "第1章写完了，归档" |
 | `status` | 查看进度 | "写到哪了" |
 
@@ -90,6 +94,8 @@ my-novel-skill/
 | `style` | 风格档案管理 |
 | `stats` | 学习进度+字数统计 |
 | `update_specs` | 写作后自动更新设定 |
+| `recall` | 章节回顾 |
+| `export` | 导出 txt/docx |
 | `archive` | 定稿归档 |
 | `status` | 项目状态 |
 
@@ -102,8 +108,9 @@ my-novel-skill/
 4. 用户修改章节         # 人机协作
 5. story:review 5       # 对比差异
 6. story:learn 5        # 学习用户风格
-7. story:update-specs 5 # 检测新设定并更新
-8. story:stats          # 查看学习进度
+7. story:update-specs 5 # 检测新设定 + 生成摘要
+8. story:recall 5       # 回顾本章摘要
+9. story:export 1-5     # 导出交稿
 ```
 
 ## 许可

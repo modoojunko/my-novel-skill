@@ -138,13 +138,15 @@ flowchart LR
 | `story:propose` | 创建创作意图 | `[目标] [标题]` |
 | `story:define` | 设定库管理 | `[character/world] [名称] [--list/--view/--edit/--delete]` |
 | `story:volume` | 卷管理 | `[卷号] [--init] [--init-all] [--list]` |
-| `story:outline` | 编辑大纲 | `[target] [--list] [--init-chapters N]` |
+| `story:outline` | 编辑大纲 | `[target] [--list] [--init-chapters N] [--expand N] [--swap A B]` |
 | `story:write` | 写作模式 | `[章节号] [--new] [--continue N]` |
 | `story:review` | 人机差异对比 | `[章节号] [--ai FILE] [--stat] [--diff]` |
 | `story:learn` | 风格学习引擎 | `[章节号] [--force]` |
 | `story:style` | 风格档案管理 | `[--prompts] [--full] [--reset]` |
 | `story:stats` | 学习进度+字数统计 | `[--words] [--learning] [--trend] [--export FILE]` |
 | `story:update-specs` | 写作后更新设定 | `[章节] [--auto] [--view] [-v 卷号]` |
+| `story:recall` | 章节回顾 | `[章节/范围] [--recent N] [--full]` |
+| `story:export` | 导出小说 | `[范围] [--format txt/docx] [--volume N] [-o 文件名]` |
 | `story:archive` | 定稿归档 | `[章节号] [--preview] [--dry-run]` |
 | `story:status` | 查看项目状态 | `[--json]` |
 
@@ -517,6 +519,67 @@ python {STORY_DIR}/story.py outline 第5章                # 编辑第5章大纲
 - 编辑大纲时自动读取 story.json 获取卷名和主题（从 `structure.volume_titles`）
 - 章节大纲的编号基于 `chapters_per_volume` 计算所属卷号
 - 批量初始化跳过已存在的文件，不会覆盖
+
+### outline 增强功能
+
+#### --expand（展开场景细节）
+
+当卡文时，使用此功能展开场景的详细写作提示：
+
+```bash
+# 展开第5章所有场景
+python {STORY_DIR}/story.py outline --expand 5
+
+# 只展开第5章第2个场景
+python {STORY_DIR}/story.py outline --expand 5 --scene 2
+```
+
+**展开输出示例**：
+```
+============================================================
+  场景 2：张三遇见李四
+============================================================
+
+  类型: 发展
+  POV: 张三
+
+  📝 展开模板
+  ----------------------------------------
+
+  ** POV：张三
+  ** 地点：（待填充）
+  ** 时间：（待填充）
+  ** 预期字数：约 800-1500 字
+
+  ** 核心动作：
+     - （动作1）
+     - （动作2）
+
+  ** 情绪基调：（待填充）
+
+  ** 可能需要的对话：
+     - （对话1）
+     - （对话2）
+
+  ** 关键细节：
+     - （细节1）
+     - （细节2）
+
+  ** 与上下文的衔接：
+     - 承接：（上一场景如何衔接）
+     - 铺垫：（为下一场景埋下什么）
+```
+
+#### --swap（交换章节顺序）
+
+调整大纲中的章节顺序：
+
+```bash
+# 交换第8章和第10章的大纲
+python {STORY_DIR}/story.py outline --swap 8 10
+```
+
+**注意**：只交换大纲内容，不移动实际的章节正文文件。
 
 ---
 
@@ -925,7 +988,105 @@ python {STORY_DIR}/story.py update-specs 5 --auto
 
 ---
 
-## 工作流 11：archive（定稿归档）[PROCEDURE]
+## 工作流 11：recall（章节回顾）[PROCEDURE]
+
+快速查看章节摘要，回顾前文剧情。读取预先生成的摘要文件。
+
+### 触发条件
+
+- 用户说"回顾"、"前面写了什么"、"忘了上几章"
+- 写新章节之前想快速看看前面的剧情
+
+### 执行步骤
+
+```bash
+# 查看单个章节摘要
+python {STORY_DIR}/story.py recall 5
+
+# 查看连续章节摘要
+python {STORY_DIR}/story.py recall 3-5
+
+# 查看最近 N 章
+python {STORY_DIR}/story.py recall --recent 3
+
+# 显示完整摘要（不截断）
+python {STORY_DIR}/story.py recall 5 --full
+```
+
+### 摘要来源
+
+摘要文件由 `story:update-specs` 命令生成，保存到：
+```
+OUTLINE/volume-N/summaries/chapter-005-summary.md
+```
+
+### 输出示例
+
+```
+============================================================
+  第5章 摘要
+============================================================
+
+  字数: 3,200
+  POV: 张三
+  日期: 2026-04-08
+
+  本章讲述张三来到青云门山脚，回忆师父临终嘱托，
+  决定拜入青云门修行。途中遇见守门弟子李四...
+```
+
+---
+
+## 工作流 12：export（导出小说）[PROCEDURE]
+
+将章节内容导出为 txt 或 docx 格式，方便发送给编辑或发布。
+
+### 触发条件
+
+- 用户说"导出"、"发稿"、"导出 Word"
+- 写完想要导出分享
+
+### 执行步骤
+
+```bash
+# 导出全部章节（默认 txt）
+python {STORY_DIR}/story.py export
+
+# 导出指定范围
+python {STORY_DIR}/story.py export 1-10
+
+# 导出单个章节
+python {STORY_DIR}/story.py export 5
+
+# 导出为 Word 文档
+python {STORY_DIR}/story.py export 1-10 --format docx
+
+# 导出指定卷
+python {STORY_DIR}/story.py export --volume 1
+
+# 指定输出文件名
+python {STORY_DIR}/story.py export 1-5 -o my-novel-ch1-5.docx
+```
+
+### 导出目录
+
+导出的文件保存在 `EXPORT/` 目录下：
+```
+EXPORT/
+  《书名》-ch1-10.txt
+  《书名》-volume-1.docx
+```
+
+### 格式说明
+
+| 格式 | 说明 | 依赖 |
+|------|------|------|
+| txt | 纯文本，兼容性最好 | 无 |
+| docx | Word 文档，格式丰富 | `pip install python-docx` |
+
+---
+
+## 工作流 13：archive（定稿归档）[PROCEDURE]
 
 章节写作完成后，将正文和相关文件归档，记录变更。
 
