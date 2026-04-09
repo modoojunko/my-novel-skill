@@ -182,6 +182,16 @@ def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, confi
             parts.append(char_file.read_text(encoding="utf-8"))
         characters = "\n".join(parts)
 
+    # 从细纲中提取POV角色并生成约束
+    pov_constraint = ""
+    import re
+    pov_match = re.search(r'POV[:：]\s*(\S+)', chapter_outline)
+    if pov_match:
+        pov_char = pov_match.group(1).strip()
+        pov_constraint = generate_pov_constraint_prompt(root, pov_char)
+    else:
+        pov_constraint = "## POV视角约束\n\n（未在细纲中指定POV角色，请根据场景自行判断）\n"
+
     prompt = f"""# 第 {chapter_num} 章正文写作任务
 
 ## 基本信息
@@ -205,13 +215,18 @@ def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, confi
 ## 风格指南
 {truncate_text(style_guide, 500) if style_guide else "（暂无风格指南，请保持自然流畅）"}
 
+{pov_constraint}
+
+{generate_cognition_prompt(root, pov_match.group(1).strip()) if pov_match else ""}
+
 ## 写作要求
 
 1. **字数**：3000-4000 字
-2. **POV**：严格按照细纲中的 POV 视角写作
+2. **POV**：严格按照细纲中的 POV 视角写作，遵守上述POV约束
 3. **场景**：按照细纲中的场景列表展开
 4. **衔接**：开头必须自然衔接上章结尾
 5. **风格**：遵循上述风格指南
+6. **逻辑**：严格遵守POV角色的认知边界，禁止写出该角色不可能知道的信息
 
 ## 输出格式
 
@@ -409,6 +424,298 @@ def read_characters_specs(root):
     return '\n'.join(result)
 
 
+def read_character_pov_state(root: Path, char_name: str) -> dict:
+    """读取角色的POV认知状态
+    
+    解析角色设定文件中的"当前状态"章节，提取：
+    - known_characters: 已知角色列表
+    - unknown_characters: 未知角色列表
+    - known_info: 已掌握信息
+    - pending_reveals: 待揭示信息
+    """
+    char_file = root / 'SPECS' / 'characters' / f'{char_name}.md'
+    if not char_file.exists():
+        return {}
+    
+    content = char_file.read_text(encoding='utf-8')
+    
+    # 查找"当前状态"章节
+    state_start = content.find('## 当前状态')
+    if state_start == -1:
+        return {}
+    
+    state_section = content[state_start:]
+    
+    # 解析已知角色表格
+    known_chars = []
+    unknown_chars = []
+    known_info = []
+    pending_reveals = []
+    
+    # 简单解析：查找表格行
+    import re
+    
+    # 解析已知角色表格 (| 角色 | 关系 | 获知途径 | 获知章节 |)
+    table_pattern = r'\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|'
+    matches = re.findall(table_pattern, state_section)
+    for match in matches:
+        name, relation, source, chapter = match
+        if name.strip() and name.strip() != '角色':  # 跳过表头
+            known_chars.append({
+                'name': name.strip(),
+                'relationship': relation.strip(),
+                'source': source.strip(),
+                'chapter': chapter.strip()
+            })
+    
+    # 解析未知角色列表 (- [ ] 角色名)
+    unknown_pattern = r'-\s*\[\s*\]\s*([^\n]+)'
+    unknown_matches = re.findall(unknown_pattern, state_section)
+    for match in unknown_matches:
+        # 只提取角色名（去掉括号里的说明）
+        char_name_clean = match.split('（')[0].split('(')[0].strip()
+        if char_name_clean:
+            unknown_chars.append(char_name_clean)
+    
+    # 解析已掌握信息
+    info_section = state_section.find('### 已掌握信息')
+    pending_section = state_section.find('### 待揭示信息')
+    
+    if info_section != -1:
+        info_end = pending_section if pending_section != -1 else len(state_section)
+        info_text = state_section[info_section:info_end]
+        info_items = re.findall(r'-\s+(.+)', info_text)
+        known_info = [item.strip() for item in info_items if item.strip()]
+    
+    if pending_section != -1:
+        pending_text = state_section[pending_section:]
+        pending_items = re.findall(r'-\s*\[\s*\]\s+(.+)', pending_text)
+        pending_reveals = [item.strip() for item in pending_items if item.strip()]
+    
+    return {
+        'known_characters': known_chars,
+        'unknown_characters': unknown_chars,
+        'known_info': known_info,
+        'pending_reveals': pending_reveals
+    }
+
+
+def generate_pov_constraint_prompt(root: Path, pov_char: str) -> str:
+    """生成POV视角约束Prompt
+    
+    根据角色的认知状态，生成写作时必须遵守的约束。
+    """
+    if not pov_char or pov_char == '旁白':
+        return """## POV视角约束
+
+本场景使用**旁白视角**（全知视角）。
+
+**注意**：即使是全知视角，也建议保持客观描述，不要直接揭示角色内心想法，而是通过动作、神态、对话来表现。
+"""
+    
+    state = read_character_pov_state(root, pov_char)
+    if not state:
+        return f"""## POV视角约束
+
+本场景使用**{pov_char}**的视角。
+
+⚠️ 警告：未找到该角色的认知状态记录。请在 SPECS/characters/{pov_char}.md 中添加"当前状态"章节。
+"""
+    
+    lines = []
+    lines.append(f"## POV视角约束（重要！）")
+    lines.append(f"")
+    lines.append(f"你当前是 **{pov_char}** 的视角。")
+    lines.append(f"")
+    lines.append(f"**⚠️ 严格遵守以下信息边界：**")
+    lines.append(f"")
+    
+    # 已知角色
+    if state.get('known_characters'):
+        lines.append(f"**已知道的角色**（可以直接称呼名字）：")
+        for char in state['known_characters']:
+            lines.append(f"  - {char['name']}：{char['relationship']}（通过{char['source']}获知）")
+        lines.append(f"")
+    
+    # 未知角色
+    if state.get('unknown_characters'):
+        lines.append(f"**不知道的角色**（禁止直呼其名，用外貌/身份代称）：")
+        for char in state['unknown_characters']:
+            lines.append(f"  - {char}：必须用代称（如'那女孩'、'穿校服的学生'）")
+        lines.append(f"")
+    
+    # 已掌握信息
+    if state.get('known_info'):
+        lines.append(f"**已掌握的信息**：")
+        for info in state['known_info'][:5]:  # 最多显示5条
+            lines.append(f"  - {info}")
+        if len(state['known_info']) > 5:
+            lines.append(f"  - ... 等共{len(state['known_info'])}条")
+        lines.append(f"")
+    
+    # 待揭示信息
+    if state.get('pending_reveals'):
+        lines.append(f"**禁止提前揭示的信息**：")
+        for reveal in state['pending_reveals'][:3]:  # 最多显示3条
+            lines.append(f"  - ❌ {reveal}")
+        if len(state['pending_reveals']) > 3:
+            lines.append(f"  - ... 等共{len(state['pending_reveals'])}条")
+        lines.append(f"")
+    
+    lines.append(f"**写作规则**：")
+    lines.append(f"1. 只能描述{pov_char}能看到、听到、感知到的事物")
+    lines.append(f"2. 对未知角色，用外貌特征或身份代称（如'马尾辫女孩'、'那个学生'）")
+    lines.append(f"3. 禁止写出{pov_char}不可能知道的信息")
+    lines.append(f"4. 禁止直接描述其他角色的内心想法")
+    lines.append(f"")
+    
+    return '\n'.join(lines)
+
+
+def read_character_cognition(root: Path, char_name: str) -> dict:
+    """读取角色的六层认知
+    
+    解析角色设定文件中的"六层认知"章节，提取：
+    - worldview: 我的世界观
+    - self_definition: 我对自己定义
+    - values: 我的价值观
+    - ability: 我的能力
+    - skill: 我的技能
+    - environment: 我的环境
+    """
+    char_file = root / 'SPECS' / 'characters' / f'{char_name}.md'
+    if not char_file.exists():
+        return {}
+    
+    content = char_file.read_text(encoding='utf-8')
+    
+    # 查找"六层认知"章节
+    cognition_start = content.find('## 六层认知')
+    if cognition_start == -1:
+        return {}
+    
+    # 找到下一个同级或更高级标题作为结束
+    cognition_section = content[cognition_start:]
+    lines = cognition_section.split('\n')
+    
+    cognition = {}
+    current_key = None
+    current_content = []
+    
+    key_map = {
+        '我的世界观': 'worldview',
+        '我对自己定义': 'self_definition',
+        '我的价值观': 'values',
+        '我的能力': 'ability',
+        '我的技能': 'skill',
+        '我的环境': 'environment',
+    }
+    
+    for line in lines[1:]:  # 跳过"## 六层认知"标题行
+        # 遇到同级或更高级标题，停止
+        if line.startswith('## ') and not line.startswith('### '):
+            break
+        # 遇到三级标题，切换当前 key
+        if line.startswith('### '):
+            # 保存前一个 key 的内容
+            if current_key and current_content:
+                text = '\n'.join(current_content).strip()
+                # 去掉引用行和"影响"行
+                clean_lines = []
+                for l in text.split('\n'):
+                    if l.startswith('> ') or l.startswith('→'):
+                        continue
+                    if l.strip():
+                        clean_lines.append(l.strip())
+                cognition[current_key] = '\n'.join(clean_lines)
+            
+            title = line.replace('### ', '').strip()
+            current_key = key_map.get(title)
+            current_content = []
+        elif current_key:
+            current_content.append(line)
+    
+    # 保存最后一个 key
+    if current_key and current_content:
+        text = '\n'.join(current_content).strip()
+        clean_lines = []
+        for l in text.split('\n'):
+            if l.startswith('> ') or l.startswith('→'):
+                continue
+            if l.strip():
+                clean_lines.append(l.strip())
+        cognition[current_key] = '\n'.join(clean_lines)
+    
+    return cognition
+
+
+def generate_cognition_prompt(root: Path, pov_char: str) -> str:
+    """生成基于六层认知的角色行为约束 Prompt
+    
+    世界观 → 影响角色面对事件时的态度和信念
+    价值观 → 影响角色在冲突中的选择
+    能力/技能 → 角色当前能做什么，影响后续是学习还是直接解决
+    """
+    if not pov_char or pov_char == '旁白':
+        return ""
+    
+    cognition = read_character_cognition(root, pov_char)
+    if not cognition:
+        return ""
+    
+    lines = []
+    lines.append("## 角色认知驱动（核心！）")
+    lines.append("")
+    lines.append(f"角色 **{pov_char}** 的深层认知决定了其行为逻辑：")
+    lines.append("")
+    
+    # 世界观 → 态度和信念
+    if cognition.get('worldview') and cognition['worldview'] != '（待填写）':
+        lines.append(f"**世界观**：{cognition['worldview']}")
+        lines.append(f"→ 面对事件时的态度和信念以此为根基")
+        lines.append("")
+    
+    # 自我定义 → 内心独白和行为动机
+    if cognition.get('self_definition') and cognition['self_definition'] != '（待填写）':
+        lines.append(f"**自我定义**：{cognition['self_definition']}")
+        lines.append(f"→ 内心独白和行为动机由此驱动")
+        lines.append("")
+    
+    # 价值观 → 冲突中的选择
+    if cognition.get('values') and cognition['values'] != '（待填写）':
+        lines.append(f"**价值观**：{cognition['values']}")
+        lines.append(f"→ 在两难冲突中的取舍优先级")
+        lines.append("")
+    
+    # 能力 → 解决问题的方式
+    if cognition.get('ability') and cognition['ability'] != '（待填写）':
+        lines.append(f"**核心能力**：{cognition['ability']}")
+        ability_hint = "→ 角色可以直接解决问题，展现能力" if '（待填写）' not in cognition['ability'] else ""
+        if ability_hint:
+            lines.append(ability_hint)
+        lines.append("")
+    
+    # 技能 → 日常行为基础
+    if cognition.get('skill') and cognition['skill'] != '（待填写）':
+        lines.append(f"**技能**：{cognition['skill']}")
+        lines.append("")
+    
+    # 环境 → 背景约束
+    if cognition.get('environment') and cognition['environment'] != '（待填写）':
+        lines.append(f"**环境**：{cognition['environment']}")
+        lines.append(f"→ 角色行为受此环境约束和塑造")
+        lines.append("")
+    
+    lines.append("**写作规则**：")
+    lines.append(f"1. {pov_char}的态度和信念必须符合其世界观")
+    lines.append(f"2. 面对两难选择时，优先级必须符合其价值观")
+    lines.append(f"3. 角色只能做其能力/技能范围内的事，超出范围需要学习或求助")
+    lines.append(f"4. 角色对环境的反应必须符合其生活背景")
+    lines.append("")
+    
+    return '\n'.join(lines)
+
+
 def read_world_specs(root):
     """读取世界观设定"""
     world_dir = root / 'SPECS' / 'world'
@@ -559,7 +866,25 @@ def generate_agent_prompt(root, config, chapter_num, volume_num):
         prompt_parts.append(truncate_text(prev_ending, 600))
         prompt_parts.append("")
 
-    # 8. 写作要求
+    # 8. POV约束（从细纲提取POV角色）
+    pov_char = None
+    if chapter_outline:
+        import re
+        pov_match = re.search(r'POV[:：]\s*(\S+)', chapter_outline)
+        if pov_match:
+            pov_char = pov_match.group(1).strip()
+    
+    pov_constraint = generate_pov_constraint_prompt(root, pov_char or "旁白")
+    if pov_constraint:
+        prompt_parts.append(pov_constraint)
+        prompt_parts.append("")
+
+    # 9. 角色认知驱动（从六层认知中提取）
+    cognition_prompt = generate_cognition_prompt(root, pov_char or "")
+    if cognition_prompt:
+        prompt_parts.append(cognition_prompt)
+
+    # 10. 写作要求
     prompt_parts.append("## 写作要求\n")
     prompt_parts.append(f"- 字数：约 2500-3500 字")
     if chapter_outline:
@@ -570,6 +895,7 @@ def generate_agent_prompt(root, config, chapter_num, volume_num):
     prompt_parts.append("- 保持情节连贯，衔接上章结尾")
     if style_prompts:
         prompt_parts.append("- 遵循上述风格指南")
+    prompt_parts.append("- 严格遵守POV角色的认知边界，禁止写出该角色不可能知道的信息")
     prompt_parts.append("- 禁止：错别字、语法错误、POV 混乱")
 
     return '\n'.join(prompt_parts)

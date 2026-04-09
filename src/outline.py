@@ -148,17 +148,28 @@ def generate_chapter_draft_prompt(root: Path, chapter_num: int, config: dict) ->
 1. [开场] 场景描述 - POV:xxx - 约800字
    - 核心动作：（发生什么）
    - 情绪：（此刻人物感受）
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
 
 2. [发展] 场景描述 - POV:xxx - 约1200字
    - 核心动作：xxx
    - 情绪：xxx
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
 
 3. [转折] 场景描述 - POV:xxx - 约1000字
    - 核心动作：xxx
    - 情绪：xxx
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
 
 4. [结尾] 场景描述 - POV:xxx - 约500字
    - 悬念/衔接：（留下什么钩子）
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
+
+## POV认知状态说明
+每个场景的POV角色都有独立的认知边界。写作时必须参考该角色设定文件中的"当前状态"章节：
+- **已知角色**：POV角色已经知道名字的人，可以直接称呼
+- **未知角色**：POV角色尚未获知名字的人，必须用外貌/身份代称（如"那女孩"、"穿校服的学生"）
+- **已掌握信息**：POV角色已经知道的事实
+- **待揭示信息**：POV角色还不知道，将在本章或后续揭示的内容
 
 ## 关键对话
 - 「角色1」：「台词内容」（目的/情绪）
@@ -464,12 +475,17 @@ def edit_chapter_outline(root, config, chapter_num):
 （待填充）
 
 ## POV
-（待填充）
+（待填充 - 本章的主要视点人物）
 
 ## 场景列表
 1. [开场] 场景描述 - POV:xxx - 约800字
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
+
 2. [发展] 场景描述 - POV:xxx - 约1200字
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
+
 3. [转折] 场景描述 - POV:xxx - 约1000字
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
 
 ## 情节点
 （待填充）
@@ -482,6 +498,11 @@ def edit_chapter_outline(root, config, chapter_num):
 
 ## 预期字数
 约 3000 字
+
+## POV认知状态说明
+写作时必须遵守POV角色的认知边界。参考该角色设定文件中的"当前状态"章节：
+- **已知角色**：可以直接称呼名字
+- **未知角色**：用外貌/身份代称（如"那女孩"、"穿校服的学生"）
 """
         chapter_path.write_text(content, encoding='utf-8')
 
@@ -512,12 +533,17 @@ def init_volume_chapters(root, config, volume_num):
 （待填充）
 
 ## POV
-（待填充）
+（待填充 - 本章的主要视点人物）
 
 ## 场景列表
 1. [开场] 场景描述 - POV:xxx - 约800字
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
+
 2. [发展] 场景描述 - POV:xxx - 约1200字
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
+
 3. [转折] 场景描述 - POV:xxx - 约1000字
+   - 认知状态引用：参考 SPECS/characters/[POV角色名].md 的"当前状态"章节
 
 ## 情节点
 （待填充）
@@ -530,6 +556,11 @@ def init_volume_chapters(root, config, volume_num):
 
 ## 预期字数
 约 3000 字
+
+## POV认知状态说明
+写作时必须遵守POV角色的认知边界。参考该角色设定文件中的"当前状态"章节：
+- **已知角色**：可以直接称呼名字
+- **未知角色**：用外貌/身份代称（如"那女孩"、"穿校服的学生"）
 """
             chapter_path.write_text(content, encoding='utf-8')
             created.append(ch_num)

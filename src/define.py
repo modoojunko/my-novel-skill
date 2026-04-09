@@ -107,6 +107,40 @@ modified: {modified}
 
 （人物的前史、成长经历、为什么会成为现在的样子）
 
+## 六层认知
+
+> 角色的深层驱动力，决定其在剧情中的抉择、情绪和说话方式。
+
+### 我的世界观
+
+（这个角色对世界的根本看法。如：正派相信正义终将战胜邪恶、宿命论者认为一切早已注定、犬儒主义者觉得世界本质是残酷的）
+→ 影响角色面对事件时的态度和信念
+
+### 我对自己定义
+
+（我是个什么样的人。如：我是个普通但靠谱的人、我注定要成为王、我不过是个逃兵）
+→ 影响角色的内心独白和行为动机
+
+### 我的价值观
+
+（在艰难决策上的取舍优先级。如：他人感受 > 真相 > 自己、家族荣耀 > 个人幸福、生存 > 道德）
+→ 影响角色在冲突中的选择
+
+### 我的能力
+
+（角色解决问题的方式和核心能力。如：倾听与共情、洞察人心、过目不忘）
+→ 决定角色是直接解决问题，还是需要学习成长
+
+### 我的技能
+
+（角色掌握的具体技能。如：整理货架、泡方便面、剑术、编程）
+→ 角色日常行为的基础
+
+### 我的环境
+
+（角色所处的物理和社会环境。如：深夜便利店、贵族学院、战场前线）
+→ 角色行为和认知的背景约束
+
 ## 人物关系
 
 - **家人**：（如有）
@@ -321,7 +355,75 @@ def delete_character(chars_dir: Path, name: str):
     return True
 
 
-def create_character(chars_dir: Path, name: str):
+# 六层认知引导问题
+COGNITION_LAYERS = [
+    ('worldview', '我的世界观', '这个角色对世界的根本看法',
+     ['正派相信正义终将战胜邪恶', '宿命论者认为一切早已注定',
+      '犬儒主义者觉得世界本质是残酷的', '实用主义者相信适者生存']),
+    ('self_definition', '我对自己定义', '我是个什么样的人',
+     ['我是个普通但靠谱的人', '我注定要成为王', '我不过是个逃兵',
+      '我是被选中的人']),
+    ('values', '我的价值观', '在艰难决策上的取舍优先级',
+     ['他人感受 > 真相 > 自己', '家族荣耀 > 个人幸福',
+      '生存 > 道德', '自由 > 安全']),
+    ('ability', '我的能力', '角色解决问题的方式和核心能力',
+     ['倾听与共情——能让人感到被理解', '洞察人心——知道什么时候该说什么话',
+      '过目不忘——信息就是武器', '坚韧不拔——靠意志力扛过一切']),
+    ('skill', '我的技能', '角色掌握的具体技能',
+     ['整理货架、泡方便面', '剑术、骑术',
+      '编程、数据分析', '察言观色、谈判']),
+    ('environment', '我的环境', '角色所处的物理和社会环境',
+     ['深夜便利店——孤独但安全', '贵族学院——充满竞争和偏见',
+      '战场前线——生死一瞬', '小城镇——人人相识，没有秘密']),
+]
+
+
+def collect_cognition_interactive(name: str) -> dict:
+    """交互式收集六层认知"""
+    print(f"\n  {c('═══ 六层认知设定 ═══', Colors.BOLD + Colors.CYAN)}")
+    print(f"  为「{name}」填充深层驱动力，让角色活起来。")
+    print(f"  {c('（直接回车跳过，后续可编辑文件补充）', Colors.DIM)}")
+    print()
+
+    cognition = {}
+    for key, title, desc, examples in COGNITION_LAYERS:
+        print(f"  {c(f'【{title}】', Colors.YELLOW)}")
+        print(f"  {c(desc, Colors.DIM)}")
+        if examples:
+            print(f"  {c('示例：', Colors.DIM)}")
+            for ex in examples[:3]:
+                print(f"    {c('•', Colors.DIM)} {ex}")
+        value = input(f"\n  {title}：").strip()
+        cognition[key] = value if value else '（待填写）'
+        print()
+
+    return cognition
+
+
+def apply_cognition_to_template(content: str, cognition: dict) -> str:
+    """将六层认知数据填入模板"""
+    for key, value in cognition.items():
+        # 替换模板中的占位内容
+        # 每个认知层有对应的"（待填写）"提示
+        patterns = {
+            'worldview': '（这个角色对世界的根本看法。',
+            'self_definition': '（我是个什么样的人。',
+            'values': '（在艰难决策上的取舍优先级。',
+            'ability': '（角色解决问题的方式和核心能力。',
+            'skill': '（角色掌握的具体技能。',
+            'environment': '（角色所处的物理和社会环境。',
+        }
+        if key in patterns and value != '（待填写）':
+            # 找到对应的段落并替换
+            old_text = patterns[key]
+            if old_text in content:
+                # 替换整个括号内容
+                content = content.replace(old_text, value, 1)
+
+    return content
+
+
+def create_character(chars_dir: Path, name: str, cognition_mode: bool = True):
     """创建新人物卡"""
     char_file = chars_dir / f'{name}.md'
 
@@ -333,14 +435,24 @@ def create_character(chars_dir: Path, name: str):
 
     # 创建模板
     content = create_character_template(name)
+
+    # 交互式收集六层认知
+    if cognition_mode:
+        try:
+            cognition = collect_cognition_interactive(name)
+            content = apply_cognition_to_template(content, cognition)
+        except (EOFError, KeyboardInterrupt):
+            print(f"\n  {c('[INFO] 跳过六层认知，可后续编辑补充', Colors.DIM)}")
+
     char_file.write_text(content, encoding='utf-8')
 
-    print(f"\n  {c('[OK] 人物卡已创建', Colors.GREEN)}")
+    print(f"  {c('[OK] 人物卡已创建', Colors.GREEN)}")
     print(f"  文件：{char_file}")
     print(f"\n  {c('[下一步]', Colors.YELLOW)}")
     print(f"  1. 编辑人物卡：story:define character {name} --edit")
     print(f"  2. 查看人物卡：story:define character {name} --view")
-    print(f"  3. 在写作时，SPECS/characters/{name}.md 将自动加载到上下文")
+    print(f"  3. 补充六层认知：编辑文件中的「六层认知」章节")
+    print(f"  4. 在写作时，SPECS/characters/{name}.md 将自动加载到上下文")
     return True
 
 

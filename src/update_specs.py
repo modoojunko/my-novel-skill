@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-story:update-specs - 写作后自动更新设定文档
+story:update-specs - 更新角色设定和检测新信息
 
-分析章节内容，检测新人物、地点、世界观设定，
-自动更新到 SPECS 目录。
+功能：
+1. 扫描章节内容，检测新揭示的角色名、信息
+2. 自动更新角色设定文件中的"当前状态"章节
+3. 同步更新 story.json 中的 pov_states 快照
+4. 生成本章摘要供后续章节参考
+
+Usage:
+  story:update-specs <章节号>     # 扫描指定章节并更新设定
+  story:update-specs --dry-run    # 预览变更，不实际写入
 """
 
 import os
-import re
+import sys
 import json
-import argparse
+import re
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Set, Tuple, Optional
 
 
 class Colors:
@@ -31,10 +36,6 @@ class Colors:
 def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
-
-# ============================================================================
-# 工具函数
-# ============================================================================
 
 def find_project_root():
     """查找项目根目录"""
@@ -57,692 +58,382 @@ def load_config(root):
         return json.load(f)
 
 
-def get_chapter_path(root, chapter_num, volume_num=None):
-    """获取章节文件路径"""
-    chapters_per = 30
-    if volume_num is None:
-        volume_num = ((chapter_num - 1) // chapters_per) + 1
-    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
-    return chapter_path
+def save_config(root, config):
+    """保存配置"""
+    config_path = root / 'story.json'
+    with open(config_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
 
 
-def get_existing_specs(root) -> Tuple[Set[str], Set[str]]:
-    """获取已存在的设定名称"""
-    chars_dir = root / 'SPECS' / 'characters'
-    world_dir = root / 'SPECS' / 'world'
+def read_character_pov_state(root: Path, char_name: str) -> dict:
+    """读取角色的POV认知状态"""
+    char_file = root / 'SPECS' / 'characters' / f'{char_name}.md'
+    if not char_file.exists():
+        return {}
     
-    existing_chars = set()
-    existing_world = set()
+    content = char_file.read_text(encoding='utf-8')
     
-    if chars_dir.exists():
-        for f in chars_dir.glob('*.md'):
-            existing_chars.add(f.stem)
+    # 查找"当前状态"章节
+    state_start = content.find('## 当前状态')
+    if state_start == -1:
+        return {}
     
-    if world_dir.exists():
-        for f in world_dir.glob('*.md'):
-            existing_world.add(f.stem)
+    state_section = content[state_start:]
     
-    return existing_chars, existing_world
-
-
-def extract_content(text: str) -> str:
-    """提取纯文本内容（去掉 frontmatter 和标题）"""
-    lines = text.split('\n')
-    content_lines = []
-    in_frontmatter = False
+    # 解析已知角色表格
+    known_chars = []
+    unknown_chars = []
+    known_info = []
+    pending_reveals = []
     
-    for line in lines:
-        if line.strip() == '---':
-            in_frontmatter = not in_frontmatter
-            continue
-        if in_frontmatter:
-            continue
-        if line.startswith('# '):
-            continue
-        content_lines.append(line)
+    # 解析已知角色表格
+    table_pattern = r'\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|'
+    matches = re.findall(table_pattern, state_section)
+    for match in matches:
+        name, relation, source, chapter = match
+        if name.strip() and name.strip() != '角色':
+            known_chars.append({
+                'name': name.strip(),
+                'relationship': relation.strip(),
+                'source': source.strip(),
+                'chapter': chapter.strip()
+            })
     
-    return '\n'.join(content_lines)
-
-
-# ============================================================================
-# 设定检测器
-# ============================================================================
-
-def detect_characters(text: str) -> List[Dict[str, any]]:
-    """检测人物名称"""
-    characters = []
-    seen = set()
+    # 解析未知角色列表
+    unknown_pattern = r'-\s*\[\s*\]\s*([^\n]+)'
+    unknown_matches = re.findall(unknown_pattern, state_section)
+    for match in unknown_matches:
+        char_name_clean = match.split('（')[0].split('(')[0].strip()
+        if char_name_clean:
+            unknown_chars.append(char_name_clean)
     
-    # 模式1：对话引号内的"XX说"、"XX道"、"XX问道"等
-    speech_patterns = [
-        r'[""''「『]([^""''「』]{2,8})[""''」』][说问道答喊叫吼叹笑哭吵骂讲唤斥]',
-        r'[""''「『]([^""''「』]{2,8})[""''」』][，。]',
-    ]
+    # 解析已掌握信息
+    info_section = state_section.find('### 已掌握信息')
+    pending_section = state_section.find('### 待揭示信息')
     
-    for pattern in speech_patterns:
-        for match in re.finditer(pattern, text):
-            name = match.group(1).strip()
-            if name and 2 <= len(name) <= 6 and name not in seen:
-                # 排除常见的非人名
-                if not any(kw in name for kw in ['什么', '怎么', '为什么', '这个', '那个', '你的', '我的']):
-                    seen.add(name)
-                    characters.append({
-                        'name': name,
-                        'source': 'dialogue',
-                        'context': text[max(0, match.start()-20):match.end()+20]
-                    })
+    if info_section != -1:
+        info_end = pending_section if pending_section != -1 else len(state_section)
+        info_text = state_section[info_section:info_end]
+        info_items = re.findall(r'-\s+(.+)', info_text)
+        known_info = [item.strip() for item in info_items if item.strip()]
     
-    # 模式2："XX的..."后跟动词（可能的POV描述）
-    pov_patterns = [
-        r'([\u4e00-\u9fff]{2,4})见[\u4e00-\u9fff]',
-        r'([\u4e00-\u9fff]{2,4})想[\u4e00-\u9fff]',
-        r'([\u4e00-\u9fff]{2,4})走向',
-        r'([\u4e00-\u9fff]{2,4})来到',
-        r'([\u4e00-\u9fff]{2,4})走进',
-    ]
-    
-    for pattern in pov_patterns:
-        for match in re.finditer(pattern, text):
-            name = match.group(1).strip()
-            if name and name not in seen:
-                seen.add(name)
-                characters.append({
-                    'name': name,
-                    'source': 'narrative',
-                    'context': text[max(0, match.start()-20):match.end()+20]
-                })
-    
-    # 模式3：检测引号内的第一人称（对话内容中的名字）
-    quote_pattern = r'[""''「『]([^""''「』]{1,30})[""''」』]'
-    for match in re.finditer(quote_pattern, text):
-        content = match.group(1)
-        # 检测引号内提到的人名
-        name_mentions = re.findall(r'[\u4e00-\u9fff]{2,4}(?=说|告诉|问|叫|是|在)', content)
-        for name in name_mentions:
-            if name and name not in seen and len(name) >= 2:
-                seen.add(name)
-                characters.append({
-                    'name': name,
-                    'source': 'reference',
-                    'context': content
-                })
-    
-    return characters
-
-
-def detect_locations(text: str) -> List[Dict[str, any]]:
-    """检测地点名称"""
-    locations = []
-    seen = set()
-    
-    # 地点指示词模式
-    location_patterns = [
-        # 来到/走进 + 地点
-        (r'[来走]到(.{2,10})[，,]', 'arrival'),
-        (r'走进?(.{2,10})[，,]', 'enter'),
-        (r'来到?(.{2,10})[，,]', 'arrive'),
-        # 位于/处在
-        (r'位于(.+)', 'location'),
-        (r'处在(.+)', 'location'),
-        # 在 + 地点 + 的
-        (r'在(.+)的', 'place'),
-        # 常见的地点前缀
-        (r'[到了](.+)城[，,]', 'city'),
-        (r'[到了](.+)镇[，,]', 'town'),
-        (r'[到了](.+)村[，,]', 'village'),
-        (r'[到了](.+)殿[，,]', 'palace'),
-        (r'[到了](.+)宫[，,]', 'palace'),
-        (r'[到了](.+)山[，,]', 'mountain'),
-        (r'[到了](.+)林[，,]', 'forest'),
-        (r'[到了](.+)湖[，,]', 'lake'),
-        (r'[到了](.+)河[，,]', 'river'),
-    ]
-    
-    for pattern, loc_type in location_patterns:
-        for match in re.finditer(pattern, text):
-            location = match.group(1).strip()
-            # 清理可能的标点和多余字符
-            location = re.sub(r'[，。！？、：；""''「』].*$', '', location)
-            location = location.strip()
-            
-            if location and 2 <= len(location) <= 10 and location not in seen:
-                # 排除一些常见词
-                exclude_words = ['哪里', '什么地方', '这里', '那里', '某处']
-                if location not in exclude_words:
-                    seen.add(location)
-                    locations.append({
-                        'name': location,
-                        'type': loc_type,
-                        'context': text[max(0, match.start()-30):match.end()+30]
-                    })
-    
-    return locations
-
-
-def detect_concepts(text: str) -> List[Dict[str, any]]:
-    """检测世界观概念（组织、物品、特殊能力等）"""
-    concepts = []
-    seen = set()
-    
-    # 组织/门派模式
-    org_patterns = [
-        (r'加入(.+?)[社门派盟会党]', 'org'),
-        (r'(.+)门[的]?', 'sect'),
-        (r'(.+)派[的]?', 'sect'),
-        (r'(.+)盟[的]?', 'alliance'),
-        (r'(.+)宗[的]?', 'sect'),
-    ]
-    
-    for pattern, concept_type in org_patterns:
-        for match in re.finditer(pattern, text):
-            name = match.group(1).strip()
-            if name and 2 <= len(name) <= 8 and name not in seen:
-                seen.add(name)
-                concepts.append({
-                    'name': name,
-                    'type': concept_type,
-                    'context': text[max(0, match.start()-30):match.end()+30]
-                })
-    
-    # 物品/神器模式
-    item_patterns = [
-        (r'[手持拿握佩戴](.+)剑', 'weapon'),
-        (r'[手持拿握佩戴](.+)刀', 'weapon'),
-        (r'(.+)神[器剑刀]', 'artifact'),
-        (r'(.+)宝[剑物]', 'treasure'),
-        (r'[获得得到拥有](.+)能力', 'ability'),
-        (r'[掌握学会](.+)功法', 'technique'),
-    ]
-    
-    for pattern, item_type in item_patterns:
-        for match in re.finditer(pattern, text):
-            name = match.group(1).strip()
-            if name and 2 <= len(name) <= 10 and name not in seen:
-                seen.add(name)
-                concepts.append({
-                    'name': name,
-                    'type': item_type,
-                    'context': text[max(0, match.start()-30):match.end()+30]
-                })
-    
-    return concepts
-
-
-def get_context_snippet(text: str, keyword: str, snippet_len: int = 100) -> str:
-    """获取关键词周围的文本片段"""
-    idx = text.find(keyword)
-    if idx == -1:
-        return ""
-    start = max(0, idx - snippet_len // 2)
-    end = min(len(text), idx + len(keyword) + snippet_len // 2)
-    snippet = text[start:end]
-    if start > 0:
-        snippet = "..." + snippet
-    if end < len(text):
-        snippet = snippet + "..."
-    return snippet.replace('\n', ' ').strip()
-
-
-# ============================================================================
-# 设定创建和更新
-# ============================================================================
-
-def ensure_specs_dirs(root):
-    """确保设定目录存在"""
-    chars_dir = root / 'SPECS' / 'characters'
-    world_dir = root / 'SPECS' / 'world'
-    chars_dir.mkdir(parents=True, exist_ok=True)
-    world_dir.mkdir(parents=True, exist_ok=True)
-    return chars_dir, world_dir
-
-
-def create_character_spec(name: str, context: str = "") -> str:
-    """创建人物卡内容"""
-    today = datetime.now().strftime('%Y-%m-%d')
-    return f"""---
-name: {name}
-alias: 
-gender: 
-age: 
-occupation: 
-status: 存活
-tags: [新角色]
-created: {today}
-modified: {today}
----
-
-# {name}
-
-## 基本信息
-
-**别名/昵称**：
-**性别**：
-**年龄**：
-**职业/身份**：
-**状态**：存活
-
-## 外观特征
-
-（描述外貌、穿着、标志性特征等）
-
-## 性格特点
-
-- **核心性格**：
-- **优点**：
-- **缺点**：
-- **口头禅/习惯**：
-
-## 背景故事
-
-（人物的前史、成长经历）
-
-## 人物关系
-
-- **家人**：（如有）
-- **挚友**：（如有）
-- **对手/敌人**：（如有）
-
-## 角色弧
-
-**起点**：（角色的初始状态）
-**转折点**：（经历什么事件）
-**终点**：（角色最终的成长/变化）
-
-## 本卷/本故事中的目标
-
-（当前故事中角色想要达成的目标）
-
-## 本章首次出现
-
-> {context[:200] if context else '首次出现'}
-
----
-*由 update-specs 自动创建 @ {today}*
-"""
-
-
-def create_world_spec(name: str, category: str, context: str = "") -> str:
-    """创建世界观设定"""
-    today = datetime.now().strftime('%Y-%m-%d')
-    
-    # 分类对应的模板
-    templates = {
-        '地理': """（描述地理位置、地形地貌、气候环境、自然资源等）""",
-        '历史': """（描述相关历史事件、时间线、起源传说等）""",
-        '社会': """（描述社会结构、制度、文化习俗、礼仪传统等）""",
-        '魔法/能力': """（描述能力来源、修炼方式、限制条件、使用代价等）""",
-        '科技': """（描述科技水平、特殊技术、发明创造等）""",
-        '生物': """（描述种族特性、怪物种类、生态习性等）""",
-        '物品': """（描述物品外观、功能、来历、特殊属性等）""",
-        '组织': """（描述组织结构、成员、宗旨、活动范围等）""",
-        '其他': """（其他相关设定）""",
-    }
-    
-    content_template = templates.get(category, templates['其他'])
-    
-    return f"""---
-name: {name}
-category: {category}
-created: {today}
-modified: {today}
----
-
-# {name}
-
-## 简介
-
-（简要描述{name}）
-
-## 详情
-
-{content_template}
-
-## 本章首次出现
-
-> {context[:200] if context else '首次出现'}
-
----
-*由 update-specs 自动创建 @ {today}*
-"""
-
-
-def prompt_choice(question: str, options: List[str]) -> int:
-    """提示用户选择"""
-    print(f"\n{c('[?] ' + question, Colors.CYAN)}")
-    for i, opt in enumerate(options, 1):
-        print(f"  {i}. {opt}")
-    
-    while True:
-        try:
-            choice = input(c("\n请选择 (1-{}): ", Colors.YELLOW).format(len(options)))
-            idx = int(choice) - 1
-            if 0 <= idx < len(options):
-                return idx
-        except ValueError:
-            pass
-        print(c("无效选择，请重新输入", Colors.RED))
-
-
-def ask_add_character(name: str, context: str) -> bool:
-    """询问是否添加人物"""
-    print(f"""
-{c('='*60, Colors.HEADER)}
-{c('  🆕 检测到新人物', Colors.GREEN)}
-{c('='*60, Colors.HEADER)}
-    """)
-    print(f"  {c('人物名称:', Colors.BOLD)} {c(name, Colors.YELLOW)}")
-    print(f"  {c('发现场景:', Colors.BOLD)}")
-    print(f"  {c(context[:150] + '...' if len(context) > 150 else context, Colors.DIM)}")
-    
-    choice = prompt_choice(
-        f"是否添加到人物设定库？",
-        ["添加到人物库", "跳过"]
-    )
-    return choice == 0
-
-
-def ask_add_world(name: str, context: str, suggested_type: str = "其他") -> Tuple[bool, str]:
-    """询问是否添加世界观设定"""
-    print(f"""
-{c('='*60, Colors.HEADER)}
-{c('  🆕 检测到新世界观', Colors.GREEN)}
-{c('='*60, Colors.HEADER)}
-    """)
-    print(f"  {c('名称:', Colors.BOLD)} {c(name, Colors.YELLOW)}")
-    print(f"  {c('建议类别:', Colors.BOLD)} {c(suggested_type, Colors.CYAN)}")
-    print(f"  {c('发现场景:', Colors.BOLD)}")
-    print(f"  {c(context[:150] + '...' if len(context) > 150 else context, Colors.DIM)}")
-    
-    categories = ['地理', '历史', '社会', '魔法/能力', '科技', '生物', '物品', '组织', '其他']
-    
-    choice = prompt_choice(
-        f"是否添加到世界观设定库？",
-        categories + ["跳过"]
-    )
-    
-    if choice >= len(categories):
-        return False, ""
-    return True, categories[choice]
-
-
-# ============================================================================
-# 主功能
-# ============================================================================
-
-def analyze_chapter(root, chapter_num: int, volume_num: int = None) -> Dict:
-    """分析章节内容，检测新设定"""
-    
-    # 获取章节路径
-    if volume_num is None:
-        chapters_per = 30
-        volume_num = ((chapter_num - 1) // chapters_per) + 1
-    
-    chapter_path = get_chapter_path(root, chapter_num, volume_num)
-    
-    if not chapter_path.exists():
-        print(f"  {c(f'[ERROR] 章节文件不存在: {chapter_path}', Colors.RED)}")
-        return None
-    
-    # 读取内容
-    content = chapter_path.read_text(encoding='utf-8')
-    text = extract_content(content)
-    
-    # 获取已存在的设定
-    existing_chars, existing_world = get_existing_specs(root)
-    
-    # 检测新设定
-    characters = detect_characters(text)
-    locations = detect_locations(text)
-    concepts = detect_concepts(text)
-    
-    # 过滤已存在的设定
-    new_chars = [c for c in characters if c['name'] not in existing_chars]
-    new_locs = [l for l in locations if l['name'] not in existing_world]
-    new_concepts = [k for k in concepts if k['name'] not in existing_world]
+    if pending_section != -1:
+        pending_text = state_section[pending_section:]
+        pending_items = re.findall(r'-\s*\[\s*\]\s+(.+)', pending_text)
+        pending_reveals = [item.strip() for item in pending_items if item.strip()]
     
     return {
-        'chapter': chapter_num,
-        'volume': volume_num,
-        'path': chapter_path,
-        'new_characters': new_chars,
-        'new_locations': new_locs,
-        'new_concepts': new_concepts,
-        'existing_chars': existing_chars,
-        'existing_world': existing_world,
+        'known_characters': known_chars,
+        'unknown_characters': unknown_chars,
+        'known_info': known_info,
+        'pending_reveals': pending_reveals
     }
 
 
-def process_discovered_specs(root, analysis: Dict, auto_add: bool = False) -> Dict:
-    """处理发现的设定，询问用户是否添加"""
+def update_character_pov_state(root: Path, char_name: str, new_known_char: dict = None, 
+                               new_known_info: str = None, revealed_item: str = None) -> bool:
+    """更新角色设定文件中的当前状态"""
+    char_file = root / 'SPECS' / 'characters' / f'{char_name}.md'
+    if not char_file.exists():
+        return False
     
-    chars_dir, world_dir = ensure_specs_dirs(root)
+    content = char_file.read_text(encoding='utf-8')
     
-    results = {
-        'characters_added': [],
-        'world_added': [],
-        'skipped': [],
+    # 查找"当前状态"章节
+    state_start = content.find('## 当前状态')
+    if state_start == -1:
+        return False
+    
+    # 添加新已知角色
+    if new_known_char:
+        # 在已知角色表格后添加新行
+        table_end = content.find('\n\n### 未知', state_start)
+        if table_end == -1:
+            table_end = content.find('\n\n### 已掌握', state_start)
+        
+        if table_end != -1:
+            new_row = f"| {new_known_char['name']} | {new_known_char['relationship']} | {new_known_char['source']} | {new_known_char['chapter']} |\n"
+            content = content[:table_end] + new_row + content[table_end:]
+        
+        # 从未知列表中移除
+        if new_known_char['name'] in str(content):
+            unknown_pattern = rf"- \[ \] {re.escape(new_known_char['name'])}[^\n]*\n"
+            content = re.sub(unknown_pattern, '', content)
+    
+    # 添加新已知信息
+    if new_known_info:
+        info_section = content.find('### 已掌握信息', state_start)
+        pending_section = content.find('### 待揭示信息', state_start)
+        
+        if info_section != -1:
+            insert_pos = pending_section if pending_section != -1 else len(content)
+            new_info_line = f"- {new_known_info}\n"
+            # 检查是否已存在
+            if new_known_info not in content[info_section:insert_pos]:
+                content = content[:insert_pos] + new_info_line + content[insert_pos:]
+    
+    # 标记待揭示项为已揭示
+    if revealed_item:
+        pending_pattern = rf"(- \[ \] {re.escape(revealed_item)})"
+        content = re.sub(pending_pattern, r"- [x] \2（已揭示）", content)
+    
+    char_file.write_text(content, encoding='utf-8')
+    return True
+
+
+def scan_chapter_for_revelations(root: Path, chapter_num: int, volume_num: int) -> dict:
+    """扫描章节内容，检测新揭示的信息
+    
+    返回：
+    {
+        'pov_character': '林夜',  # 本章POV角色
+        'new_known_characters': [{'name': '苏念', 'source': '学生证'}],
+        'new_known_info': ['苏念的手没有温度'],
+        'revealed_pending': ['苏念的名字']
+    }
+    """
+    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    outline_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    
+    if not chapter_path.exists():
+        return None
+    
+    content = chapter_path.read_text(encoding='utf-8')
+    
+    # 从细纲获取POV角色
+    pov_char = None
+    if outline_path.exists():
+        outline = outline_path.read_text(encoding='utf-8')
+        pov_match = re.search(r'POV[:：]\s*(\S+)', outline)
+        if pov_match:
+            pov_char = pov_match.group(1).strip()
+    
+    if not pov_char:
+        return None
+    
+    # 获取该POV角色的当前状态
+    current_state = read_character_pov_state(root, pov_char)
+    
+    revelations = {
+        'pov_character': pov_char,
+        'new_known_characters': [],
+        'new_known_info': [],
+        'revealed_pending': []
     }
     
-    # 处理新人物
-    for char in analysis['new_characters']:
-        name = char['name']
-        context = char.get('context', '')
-        
-        # 确认是人名（不是动词等）
-        if any(kw in name for kw in ['来到', '走进', '看到', '听到', '感到', '觉得', '想到']):
-            continue
-        
-        if auto_add:
-            add = True
-        else:
-            add = ask_add_character(name, context)
-        
-        if add:
-            char_path = chars_dir / f"{name}.md"
-            char_path.write_text(create_character_spec(name, context), encoding='utf-8')
-            results['characters_added'].append(name)
-            print(f"  {c(f'✓ 已添加人物: {name}', Colors.GREEN)}")
-        else:
-            results['skipped'].append(name)
+    # 检查未知角色是否被揭示
+    for unknown_char in current_state.get('unknown_characters', []):
+        # 简单检测：角色名是否出现在正文中
+        # 注意：这只是一个启发式检测，可能需要人工确认
+        if unknown_char in content:
+            # 检查是否有获知途径的上下文
+            # 例如：学生证、自我介绍、他人称呼等
+            source = "未知途径"  # 默认
+            
+            # 启发式检测获知途径
+            if '学生证' in content and unknown_char in content[max(0, content.find('学生证')-100):content.find('学生证')+100]:
+                source = "学生证"
+            elif '自我介绍' in content or '我叫' in content:
+                source = "自我介绍"
+            elif '说' in content or '问' in content:
+                source = "他人称呼"
+            
+            revelations['new_known_characters'].append({
+                'name': unknown_char,
+                'source': source
+            })
     
-    # 处理新地点
-    for loc in analysis['new_locations']:
-        name = loc['name']
-        context = loc.get('context', '')
-        
-        if auto_add:
-            add, category = True, '地理'
-        else:
-            add, category = ask_add_world(name, context, '地理')
-        
-        if add:
-            world_path = world_dir / f"{name}.md"
-            world_path.write_text(create_world_spec(name, category, context), encoding='utf-8')
-            results['world_added'].append(name)
-            print(f"  {c(f'✓ 已添加地点: {name} ({category})', Colors.GREEN)}")
-        else:
-            results['skipped'].append(name)
+    # 检查待揭示信息是否被揭示
+    for pending in current_state.get('pending_reveals', []):
+        # 提取关键词进行匹配
+        keywords = pending.split('的')
+        if len(keywords) >= 2:
+            keyword = keywords[1].strip() if len(keywords) > 1 else keywords[0].strip()
+            if keyword and keyword in content:
+                revelations['revealed_pending'].append(pending)
     
-    # 处理新概念
-    type_to_category = {
-        'org': '组织',
-        'sect': '组织',
-        'alliance': '组织',
-        'weapon': '物品',
-        'artifact': '物品',
-        'treasure': '物品',
-        'ability': '魔法/能力',
-        'technique': '魔法/能力',
-    }
-    
-    for concept in analysis['new_concepts']:
-        name = concept['name']
-        concept_type = concept.get('type', '其他')
-        context = concept.get('context', '')
-        category = type_to_category.get(concept_type, '其他')
-        
-        if auto_add:
-            add = True
-        else:
-            add, _ = ask_add_world(name, context, category)
-        
-        if add:
-            world_path = world_dir / f"{name}.md"
-            world_path.write_text(create_world_spec(name, category, context), encoding='utf-8')
-            results['world_added'].append(name)
-            print(f"  {c(f'✓ 已添加概念: {name} ({category})', Colors.GREEN)}")
-        else:
-            results['skipped'].append(name)
-    
-    return results
+    return revelations
 
 
-def show_analysis_summary(analysis: Dict):
-    """显示分析摘要"""
+def generate_chapter_summary(root: Path, chapter_num: int, volume_num: int) -> str:
+    """生成本章摘要"""
+    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    outline_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
     
-    print(f"""
-{c('='*60, Colors.HEADER)}
-{c('  📊 章节设定分析结果', Colors.CYAN)}
-{c('='*60, Colors.HEADER)}
-    """)
+    if not chapter_path.exists():
+        return ""
     
-    print(f"  章节: 第{analysis['volume']}卷 第{analysis['chapter']}章")
-    print(f"  文件: {analysis['path'].relative_to(Path.cwd())}")
-    print()
+    content = chapter_path.read_text(encoding='utf-8')
+    outline = ""
+    if outline_path.exists():
+        outline = outline_path.read_text(encoding='utf-8')
     
-    print(f"  {c('已有人物:', Colors.DIM)} {len(analysis['existing_chars'])} 个")
-    print(f"  {c('已有世界观:', Colors.DIM)} {len(analysis['existing_world'])} 个")
-    print()
+    # 统计字数
+    word_count = sum(1 for c in content if '\u4e00' <= c <= '\u9fff')
     
-    # 新人物
-    new_chars = analysis['new_characters']
-    if new_chars:
-        print(f"  {c('🆕 新人物 ({}):', Colors.YELLOW).format(len(new_chars))}")
-        for char in new_chars[:10]:  # 最多显示10个
-            print(f"    • {char['name']}")
-        if len(new_chars) > 10:
-            print(f"    ... 还有 {len(new_chars) - 10} 个")
-        print()
-    else:
-        print(f"  {c('🆕 新人物:', Colors.DIM)} 0 个")
-        print()
+    # 提取标题
+    title_match = re.search(r'# 第\d+章[：:]\s*(.+)', content)
+    title = title_match.group(1).strip() if title_match else "未命名"
     
-    # 新地点
-    new_locs = analysis['new_locations']
-    if new_locs:
-        print(f"  {c('🗺️ 新地点 ({}):', Colors.YELLOW).format(len(new_locs))}")
-        for loc in new_locs[:10]:
-            print(f"    • {loc['name']} ({loc.get('type', '')})")
-        if len(new_locs) > 10:
-            print(f"    ... 还有 {len(new_locs) - 10} 个")
-        print()
-    else:
-        print(f"  {c('🗺️ 新地点:', Colors.DIM)} 0 个")
-        print()
-    
-    # 新概念
-    new_concepts = analysis['new_concepts']
-    if new_concepts:
-        print(f"  {c('💡 新概念 ({}):', Colors.YELLOW).format(len(new_concepts))}")
-        for concept in new_concepts[:10]:
-            print(f"    • {concept['name']} ({concept.get('type', '')})")
-        if len(new_concepts) > 10:
-            print(f"    ... 还有 {len(new_concepts) - 10} 个")
-        print()
-    else:
-        print(f"  {c('💡 新概念:', Colors.DIM)} 0 个")
-        print()
+    summary = f"""# 第{chapter_num}章摘要
+
+## 基本信息
+- **标题**：{title}
+- **字数**：约 {word_count} 字
+- **生成时间**：{datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+## 本章大纲
+{outline[:500] if outline else "（无细纲）"}
+
+## 关键事件
+（待人工填写）
+
+## 新揭示信息
+（待人工填写）
+
+## 伏笔/钩子
+（待人工填写）
+
+## 后续衔接建议
+（待人工填写）
+"""
+    return summary
 
 
-# ============================================================================
-# 主函数
-# ============================================================================
+def update_story_json_pov_states(root: Path):
+    """更新 story.json 中的 pov_states 快照"""
+    config = load_config(root)
+    
+    chars_dir = root / 'SPECS' / 'characters'
+    if not chars_dir.exists():
+        return
+    
+    if 'pov_states' not in config:
+        config['pov_states'] = {}
+    
+    for char_file in chars_dir.glob('*.md'):
+        char_name = char_file.stem
+        state = read_character_pov_state(root, char_name)
+        if state:
+            config['pov_states'][char_name] = state
+    
+    save_config(root, config)
+
 
 def main():
+    import argparse
+    
     parser = argparse.ArgumentParser(
-        description='写作后自动更新设定文档 - 分析章节内容，检测并添加新设定',
+        description='更新角色设定和检测新信息',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例：
-  python story.py update-specs 5              # 分析第5章
-  python story.py update-specs 5 --auto        # 自动添加所有检测到的设定
-  python story.py update-specs 5 --view        # 仅显示分析结果，不添加
-  python story.py update-specs 5 -v 2         # 指定卷号
-
-提示：
-  写完章节后运行此命令，系统会检测新增的人物、地点、世界观，
-  并询问你是否添加到设定库中。
+  story:update-specs 5              # 扫描第5章并更新设定
+  story:update-specs 5 --dry-run    # 预览变更，不实际写入
         """
     )
     parser.add_argument('chapter', nargs='?', type=int, help='章节号')
-    parser.add_argument('-v', '--volume', type=int, help='卷号')
-    parser.add_argument('--auto', '-a', action='store_true', help='自动添加所有检测到的设定')
-    parser.add_argument('--view', action='store_true', help='仅显示分析结果，不添加')
+    parser.add_argument('--dry-run', '-n', action='store_true',
+                        help='预览变更，不实际写入文件')
+    parser.add_argument('--summary', '-s', action='store_true',
+                        help='同时生成章节摘要')
     
     args = parser.parse_args()
     
     root = find_project_root()
     if not root:
-        print(f"  {c('[ERROR] 未找到项目目录，请先运行 story:init', Colors.RED)}")
+        print(c("[ERROR] 未找到项目目录", Colors.RED))
         sys.exit(1)
     
-    # 如果未指定章节，提示
+    config = load_config(root)
+    
     if not args.chapter:
-        # 尝试从配置读取当前章节
-        try:
-            config = load_config(root)
-            args.chapter = config['progress'].get('current_chapter', 1)
-        except:
-            args.chapter = 1
-    
-    print(f"\n{c('🔍 正在分析章节...', Colors.CYAN)}")
-    
-    # 分析章节
-    analysis = analyze_chapter(root, args.chapter, args.volume)
-    if not analysis:
+        print(c("[ERROR] 请指定章节号，如 story:update-specs 5", Colors.RED))
         sys.exit(1)
     
-    # 显示摘要
-    show_analysis_summary(analysis)
+    chapter_num = args.chapter
+    chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
     
-    # 检查是否有新设定
-    has_new = (
-        len(analysis['new_characters']) > 0 or
-        len(analysis['new_locations']) > 0 or
-        len(analysis['new_concepts']) > 0
-    )
+    print(f"\n{c('[UPDATE-SPECS]', Colors.CYAN)} 更新角色设定")
+    print(f"  章节：第 {chapter_num} 章")
+    print(f"  卷：第 {volume_num} 卷")
+    if args.dry_run:
+        print(f"  模式：{c('预览模式（不写入文件）', Colors.YELLOW)}")
+    print()
     
-    if not has_new:
-        print(c("  ✅ 本章未发现新的设定", Colors.GREEN))
+    # 扫描章节
+    revelations = scan_chapter_for_revelations(root, chapter_num, volume_num)
+    
+    if not revelations:
+        print(c("  未检测到新揭示信息，或章节文件不存在", Colors.YELLOW))
+        return
+    
+    pov_char = revelations['pov_character']
+    print(f"  POV角色：{pov_char}")
+    print()
+    
+    # 显示检测结果
+    has_updates = False
+    
+    if revelations['new_known_characters']:
+        has_updates = True
+        print(c("  [检测] 新获知角色：", Colors.GREEN))
+        for char in revelations['new_known_characters']:
+            print(f"    + {char['name']}（通过{char['source']}获知）")
+    
+    if revelations['revealed_pending']:
+        has_updates = True
+        print(c("  [检测] 待揭示项已揭示：", Colors.GREEN))
+        for item in revelations['revealed_pending']:
+            print(f"    ✓ {item}")
+    
+    if not has_updates:
+        print(c("  未检测到需要更新的内容", Colors.DIM))
+    
+    print()
+    
+    # 应用更新
+    if not args.dry_run and has_updates:
+        print(c("  [更新] 正在更新角色设定文件...", Colors.CYAN))
+        
+        for char in revelations['new_known_characters']:
+            update_character_pov_state(
+                root, pov_char,
+                new_known_char={
+                    'name': char['name'],
+                    'relationship': '未知关系',
+                    'source': char['source'],
+                    'chapter': f'第{chapter_num}章'
+                }
+            )
+            print(f"    ✓ 已添加 {char['name']} 到已知角色列表")
+        
+        for item in revelations['revealed_pending']:
+            update_character_pov_state(root, pov_char, revealed_item=item)
+            print(f"    ✓ 已标记 '{item}' 为已揭示")
+        
+        # 更新 story.json 快照
+        update_story_json_pov_states(root)
+        print(f"    ✓ 已更新 story.json 中的 pov_states")
+        
         print()
-        return
+        print(c("  [完成] 角色设定已更新", Colors.GREEN))
     
-    # 处理新设定
-    if args.view:
-        print(c("  📝 使用 --auto 自动添加，或 --view 重新查看", Colors.DIM))
-        return
+    # 生成摘要
+    if args.summary:
+        summary = generate_chapter_summary(root, chapter_num, volume_num)
+        summary_dir = root / 'CONTENT' / 'summaries'
+        summary_dir.mkdir(exist_ok=True)
+        summary_path = summary_dir / f'chapter-{chapter_num:03d}-summary.md'
+        
+        if not args.dry_run:
+            summary_path.write_text(summary, encoding='utf-8')
+        
+        print()
+        print(c(f"  [摘要] 已生成章节摘要：{summary_path.relative_to(root)}", Colors.CYAN))
     
-    if args.auto:
-        print(c("\n  ⚡ 自动添加模式", Colors.YELLOW))
-        results = process_discovered_specs(root, analysis, auto_add=True)
-    else:
-        print(c("\n  ⏳ 准备添加新设定...", Colors.CYAN))
-        results = process_discovered_specs(root, analysis, auto_add=False)
-    
-    # 显示结果
-    total_added = len(results['characters_added']) + len(results['world_added'])
-    if total_added > 0:
-        print(f"""
-{c('='*60, Colors.GREEN)}
-{c('  ✅ 更新完成!', Colors.GREEN)}
-{c('='*60, Colors.GREEN)}
-
-  新增人物: {len(results['characters_added'])} 个
-  新增世界观: {len(results['world_added'])} 个
-  跳过: {len(results['skipped'])} 个
-
-  查看设定库: python story.py define
-""")
+    print()
 
 
 if __name__ == '__main__':

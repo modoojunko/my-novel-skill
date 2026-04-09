@@ -1,0 +1,107 @@
+{
+  "meta": {
+    "version": "1.0",
+    "created": "2026-04-09",
+    "updated": "2026-04-09",
+    "language": "zh-CN"
+  },
+  "book": {
+    "title": "子夜便利店",
+    "author": "modoo",
+    "genre": "都市奇幻",
+    "target_words": 15000,
+    "current_words": 10449
+  },
+  "story": {
+    "logline": "一个刚毕业的大学生，在一家只在午夜十二点到凌晨四点营业的便利店打工，却发现来光顾的客人，都不是活人——而他自己，可能也不是。",
+    "world": "现代都市中隐藏的灵异空间，子夜便利店是阴阳交界的驿站",
+    "tone": "悬疑/温情/都市奇幻"
+  },
+  "structure": {
+    "volumes": 1,
+    "chapters_per_volume": 5,
+    "volume_titles": [
+      { "num": 1, "title": "子夜便利店", "theme": "生与死的边界，一场关于'存在'的觉醒" }
+    ]
+  },
+  "progress": {
+    "current_volume": 1,
+    "current_chapter": 5,
+    "written_chapters": [1, 2, 3, 4, 5],
+    "archived_chapters": []
+  },
+  "pipeline": {
+    "volumes": {
+      "1": { "stage": "confirmed" }
+    },
+    "chapters": {
+      "1": { "stage": "done", "volume": 1 },
+      "2": { "stage": "done", "volume": 1 },
+      "3": { "stage": "done", "volume": 1 },
+      "4": { "stage": "done", "volume": 1 },
+      "5": { "stage": "done", "volume": 1 }
+    }
+  },
+  "style": {
+    "pov": "first",
+    "tense": "past",
+    "tone": "悬疑而温情，日常中见异常"
+  },
+  "pov_states": {
+    "林夜": {
+      "known_characters": [
+        {"name": "老周", "relationship": "老板/引路人", "source": "自我介绍", "chapter": "第1章"},
+        {"name": "苏念", "relationship": "神秘顾客", "source": "学生证", "chapter": "第1章"}
+      ],
+      "unknown_characters": [],
+      "known_info": [
+        "便利店只在午夜营业",
+        "收银机显示奇怪数字 0127",
+        "苏念的名字（通过学生证获知）",
+        "苏念的手\"没有温度\""
+      ],
+      "pending_reveals": [
+        "苏念的真实身份（亡魂）",
+        "便利店客人的真实身份",
+        "自己已死的事实",
+        "老周的真实身份和目的"
+      ]
+    },
+    "苏念": {
+      "known_characters": [
+        {"name": "林夜", "relationship": "便利店店员", "source": "日常对话", "chapter": "第1章"}
+      ],
+      "unknown_characters": ["老周"],
+      "known_info": [
+        "子夜便利店在午夜营业",
+        "林夜是夜班店员，会和她说话",
+        "自己每天来买同一款牛奶、坐在靠窗位置\"看书\""
+      ],
+      "pending_reveals": [
+        "自己已死的事实",
+        "考研前夜猝死的真相",
+        "给妈妈发的最后一条消息内容",
+        "便利店是亡魂中转站的真相"
+      ]
+    },
+    "老周": {
+      "known_characters": [
+        {"name": "林夜", "relationship": "继任者/新人店员", "source": "招募", "chapter": "第1章前"},
+        {"name": "苏念", "relationship": "常客/亡魂", "source": "观察", "chapter": "第1章前"}
+      ],
+      "unknown_characters": [],
+      "known_info": [
+        "林夜已死但不自知",
+        "苏念的执念是考研和母亲",
+        "便利店的运作规则",
+        "如何帮助亡魂超度",
+        "自己的执念是女儿周小雨"
+      ],
+      "pending_reveals": [
+        "林夜何时能接受真相",
+        "自己何时能放下执念",
+        "周小雨的现状"
+      ]
+    }
+  }
+}
