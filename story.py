@@ -12,7 +12,7 @@ from pathlib import Path
 # 添加 src 目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src import init, propose, plan, volume, outline, write, review, learn, style, stats, archive, status, define, update_specs, recall, export
+from src import init, propose, plan, volume, outline, write, review, learn, style, stats, archive, status, define, update_specs, recall, export, snapshot
 
 def show_banner():
     """显示横幅"""
@@ -46,7 +46,8 @@ def show_help():
   archive       定稿归档
   status        查看项目状态
   update-specs  写作后自动更新设定库
-  recall        章节回顾（查看摘要）
+  recall        章节回顾（查看摘要/快照）
+  snapshot      章节设定快照（记录设定状态）
   export        导出小说（txt/docx）
 
 示例：
@@ -119,6 +120,7 @@ def main():
         'update-specs': update_specs,
         'recall': recall,
         'export': export,
+        'snapshot': snapshot,
     }
 
     # 别名
@@ -135,6 +137,7 @@ def main():
         'a': 'archive',
         'o': 'outline',
         'i': 'init',
+        'sp': 'snapshot',  # sp for snapshot
     }
 
     # 处理别名

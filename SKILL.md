@@ -146,12 +146,13 @@ flowchart LR
 | `story:style` | 风格档案管理 | `[--prompts] [--full] [--reset]` |
 | `story:stats` | 学习进度+字数统计 | `[--words] [--learning] [--trend] [--export FILE]` |
 | `story:update-specs` | 写作后更新设定 | `[章节] [--auto] [--view] [-v 卷号]` |
-| `story:recall` | 章节回顾 | `[章节/范围] [--recent N] [--full]` |
+| `story:recall` | 章节回顾 | `[章节/范围] [--recent N] [--full] [--snapshot]` |
+| `story:snapshot` | 章节设定快照 | `[章节号] [--view] [--list] [--prompt] [--volume N]` |
 | `story:export` | 导出小说 | `[范围] [--format txt/docx] [--volume N] [-o 文件名]` |
 | `story:archive` | 定稿归档 | `[章节号] [--preview] [--dry-run]` |
 | `story:status` | 查看项目状态 | `[--json]` |
 
-别名：`s`->status, `p`->propose, `n`->plan, `v`->volume, `w`->write, `a`->archive, `o`->outline, `i`->init, `r`->review, `l`->learn, `t`->style, `u`->stats
+别名：`s`->status, `p`->propose, `n`->plan, `v`->volume, `w`->write, `a`->archive, `o`->outline, `i`->init, `r`->review, `l`->learn, `t`->style, `u`->stats, `sp`->snapshot
 
 ---
 
@@ -1182,12 +1183,13 @@ python {STORY_DIR}/story.py update-specs 5 --summary
 
 ## 工作流 11：recall（章节回顾）[PROCEDURE]
 
-快速查看章节摘要，回顾前文剧情。读取预先生成的摘要文件。
+快速查看章节摘要或设定快照，回顾前文剧情和设定状态。
 
 ### 触发条件
 
 - 用户说"回顾"、"前面写了什么"、"忘了上几章"
 - 写新章节之前想快速看看前面的剧情
+- 想看某章结束时所有设定的状态
 
 ### 执行步骤
 
@@ -1203,6 +1205,9 @@ python {STORY_DIR}/story.py recall --recent 3
 
 # 显示完整摘要（不截断）
 python {STORY_DIR}/story.py recall 5 --full
+
+# 查看章节设定快照（人物状态、剧情进度、伏笔等）
+python {STORY_DIR}/story.py recall 5 --snapshot
 ```
 
 ### 摘要来源
@@ -1226,6 +1231,107 @@ OUTLINE/volume-N/summaries/chapter-005-summary.md
   本章讲述张三来到青云门山脚，回忆师父临终嘱托，
   决定拜入青云门修行。途中遇见守门弟子李四...
 ```
+
+---
+
+## 工作流 11.5：snapshot（章节设定快照）[PROCEDURE]
+
+每个章节确认定稿时，对所有设定做一次快照。快照记录该章结束时人物状态、剧情进度、伏笔追踪和已用场景，供后续章节写作和讨论时参考。
+
+### 核心概念
+
+快照不是独立的"记忆"系统，而是**所有设定在该章结束时的 snapshot**。人物卡演进到哪了、世界观认知变了没、伏笔挂在哪、场景用过哪些——全都在快照里。
+
+### 触发条件
+
+- 章节确认定稿后（`story:write N --confirm` 后自动提示）
+- 用户说"快照"、"设定状态"、"现在人物什么状态"
+- 讨论章节时需要回顾设定
+
+### 执行步骤
+
+```bash
+# 为第5章生成设定快照
+python {STORY_DIR}/story.py snapshot 5
+
+# 查看第5章快照
+python {STORY_DIR}/story.py snapshot 5 --view
+
+# 列出所有快照
+python {STORY_DIR}/story.py snapshot --list
+
+# 仅显示 AI 填充 Prompt
+python {STORY_DIR}/story.py snapshot 5 --prompt
+```
+
+### 快照文件结构
+
+```markdown
+# 第 N 章设定快照
+
+## 人物状态
+| 角色 | 当前心理/状态 | 对外部看法 | 认知变化（vs 上章）|
+|------|-------------|-----------|-------------------|
+| 林夜 | 逐渐接受自己已死的事实 | 对苏念产生信任 | 从抗拒到接纳 |
+
+## 剧情进度
+- **主线位置**：...
+- **本章关键事件**：...
+- **下章衔接点**：...
+
+## 伏笔追踪
+- [伏笔描述] → 已回收 / 待回收（预计第X章）
+- 新增伏笔标注"（新增）"
+
+## 已用场景模式
+- 场景模式1（第1章、第3章）
+- 场景模式2（第2章）
+
+## 下章开头要点
+- 人物位置：
+- 情绪状态：
+- 悬念/待续：
+```
+
+### 快照存储
+
+```
+OUTLINE/volume-N/snapshots/
+  chapter-001-snapshot.md        # 第1章快照
+  chapter-002-snapshot.md        # 第2章快照
+  chapter-003-snapshot-prompt.md # 第3章 AI 填充 Prompt
+```
+
+### 快照如何被使用
+
+1. **写作 Prompt 注入**：`story:write N --draft` 自动读取前 3 章快照注入 Prompt
+2. **回顾查看**：`story:recall N --snapshot` 查看某章快照
+3. **讨论参考**：讨论角色/情节时打开对应快照
+
+### 快照生成流程
+
+```
+story:write N --confirm
+  → 确认定稿
+  → 提示：story:snapshot N
+
+story:snapshot N
+  → 读取本章正文 + 细纲 + 上章快照
+  → 生成 AI 填充 Prompt
+  → 保存模板到 snapshots/chapter-N-snapshot.md
+  → Agent 填充后更新快照文件
+
+story:write N+1 --draft
+  → 读取 snapshots/chapter-(N-2) 到 chapter-N
+  → 注入写作 Prompt
+```
+
+### 预期效果
+
+- **A2（场景重复）**：写作 Prompt 知道已用场景，避免重复
+- **A3（悬念悬置）**：伏笔追踪机制，跨章累积
+- **A4（心理过渡）**：人物状态记录，写作时知道角色当前情绪
+- **额外价值**：讨论时快速回顾所有设定当前状态
 
 ---
 
@@ -1509,6 +1615,52 @@ python {STORY_DIR}/story.py status [--json]
 
 当用户的请求不是明确的命令，而是创作讨论时，AI 按以下原则辅助：
 
+### 文本诊断
+
+对小说文本进行 A/B/C 三维度质量诊断，Agent 直接读取章节正文并输出诊断报告。
+
+**触发条件**：
+- 用户说"诊断"、"审查文本"、"AI 味"、"检查问题"
+- 用户想审视 AI 生成或 AI+人协作的小说章节
+
+**诊断维度**：
+
+| 维度 | 类型 | 定义 | 修复方式 |
+|------|------|------|---------|
+| A 类 | Skill/框架问题 | 结构/逻辑/节奏/POV/伏笔断层/因果断裂 | 改规则就有效 |
+| B 类 | 纯内容问题 | 人物单薄/冲突缺失/细节不足 | 补充内容 |
+| C 类 | AI 味问题 | "像某种"/排比三连/情绪直白宣判 | 调整文风 |
+
+**执行方式**：Agent 直接读取待诊断的章节文件（`CONTENT/volume-N/chapter-NNN.md`），参照 `src/diagnose_rules.md` 中的 A/B/C 检查清单逐项分析，按 `src/diagnose_prompts.md` 的框架输出诊断报告。
+
+**诊断报告格式**：
+
+```markdown
+# 《书名》文本诊断报告
+
+## 一、通读印象
+（200字以内，主线/人物/节奏/氛围/逻辑印象）
+
+## 二、A 类：Skill / 框架问题
+### A1. 🔴 章节信息密度失衡
+- 问题描述：...
+- 原文引用：Ch2 L17 "..."
+- 修复建议：...
+
+## 三、B 类：纯内容问题
+...
+
+## 四、C 类：AI 味问题
+...
+
+## 五、总结建议
+| 优先级 | 问题 | 修复方向 |
+|--------|------|---------|
+| 🔧 第一 | ... | ... |
+```
+
+**诊断完成后**：作者按严重程度迭代修改，Agent 可在下一轮对话中复诊。
+
 ### 人物讨论
 
 1. 读取 `SPECS/characters/` 下相关人物文件
@@ -1554,6 +1706,9 @@ python {STORY_DIR}/story.py status [--json]
     volume-N.md                     # 卷大纲（每卷一个）
     volume-N/
       chapter-NNN.md                # 章节大纲（每章一个）
+      snapshots/                    # [NEW] 章节设定快照
+        chapter-NNN-snapshot.md     # 设定快照
+        chapter-NNN-snapshot-prompt.md  # AI 填充 Prompt
   CONTENT/
     volume-N/
       chapter-NNN.md                # 正文

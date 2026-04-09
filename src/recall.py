@@ -12,6 +12,7 @@ import re
 import argparse
 from pathlib import Path
 from typing import List, Tuple, Optional
+from .snapshot import read_chapter_snapshot, _strip_frontmatter
 
 
 class Colors:
@@ -211,7 +212,7 @@ def format_recall_view(chapter_num: int, summary_content: str, meta: dict,
     return '\n'.join(lines)
 
 
-def show_recall_summary(chapters: List[int], root: Path, config: dict, show_full: bool = False):
+def show_recall_summary(chapters: List[int], root: Path, config: dict, show_full: bool = False, show_snapshot: bool = False):
     """显示多个章节的回顾摘要"""
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
 
@@ -219,6 +220,22 @@ def show_recall_summary(chapters: List[int], root: Path, config: dict, show_full
         if i > 0:
             print()
 
+        # 快照模式：优先显示设定快照
+        if show_snapshot:
+            snapshot_content = read_chapter_snapshot(root, chapter_num, chapters_per)
+            if snapshot_content:
+                clean = _strip_frontmatter(snapshot_content)
+                print(c('=' * 60, Colors.HEADER))
+                print(c(f'  第{chapter_num}章 设定快照', Colors.CYAN))
+                print(c('=' * 60, Colors.HEADER))
+                print()
+                print(clean)
+            else:
+                print(c(f'  [警告] 第{chapter_num}章快照不存在', Colors.YELLOW))
+                print(c(f'        运行 "story:snapshot {chapter_num}" 生成快照', Colors.DIM))
+            continue
+
+        # 摘要模式（默认）
         summary_path = get_summary_path(root, chapter_num, chapters_per)
 
         if not summary_path.exists():
@@ -245,10 +262,11 @@ def main():
   story:recall 3-5            # 查看第3到5章摘要
   story:recall --recent 3     # 查看最近3章
   story:recall 5 --full       # 显示完整摘要（不截断）
+  story:recall 5 --snapshot   # 查看第5章设定快照
 
 提示：
   摘要文件由 update-specs 命令生成。
-  运行 story:update-specs <章节号> 后，摘要会自动保存。
+  设定快照由 snapshot 命令生成。
         """
     )
     parser.add_argument('range', nargs='?', help='章节范围（如 5 或 3-5）')
@@ -256,6 +274,8 @@ def main():
                         help='查看最近 N 章')
     parser.add_argument('--full', '-f', action='store_true',
                         help='显示完整摘要（不截断）')
+    parser.add_argument('--snapshot', '-S', action='store_true',
+                        help='查看章节设定快照（而非摘要）')
     parser.add_argument('--volume', '-v', type=int,
                         help='指定卷号（默认自动计算）')
 
@@ -298,7 +318,7 @@ def main():
         sys.exit(1)
 
     # 显示回顾
-    show_recall_summary(chapters, root, config, args.full)
+    show_recall_summary(chapters, root, config, args.full, args.snapshot)
 
 
 if __name__ == '__main__':

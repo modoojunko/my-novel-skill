@@ -21,6 +21,7 @@ import json
 import argparse
 from pathlib import Path
 from datetime import datetime
+from .snapshot import read_recent_snapshots_for_prompt
 
 
 class Colors:
@@ -166,6 +167,9 @@ def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, confi
             if len(content) > 500:
                 prev_ending = "..." + content[-500:]
 
+    # 读取前序章节设定快照
+    snapshots_context = read_recent_snapshots_for_prompt(root, chapter_num, count=3, volume_num=volume_num)
+
     # 读取风格档案
     style_path = root / "style" / "style.md"
     style_guide = ""
@@ -208,6 +212,8 @@ def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, confi
 
 ## 上章结尾（需要衔接）
 {truncate_text(prev_ending, 500) if prev_ending else "（本章为第一章）"}
+
+{snapshots_context if snapshots_context else ""}
 
 ## 人物设定参考
 {characters[:500] if characters else "（暂无人物设定）"}
@@ -335,6 +341,7 @@ def confirm_chapter(root: Path, chapter_num: int) -> None:
     print(f"  ✓ 章节字数：约 {word_count} 字")
     print(f"\n  恭喜完成本章！")
     print(f"\n  下一步建议：")
+    print(f"    story:snapshot {chapter_num}      →  生成设定快照（推荐！）")
     print(f"    story:update-specs {chapter_num}  →  检测新设定并生成摘要")
     print(f"    story:write {chapter_num + 1} --draft  →  继续下一章")
 
@@ -866,6 +873,12 @@ def generate_agent_prompt(root, config, chapter_num, volume_num):
         prompt_parts.append(truncate_text(prev_ending, 600))
         prompt_parts.append("")
 
+    # 7.5 前序章节设定快照
+    snapshots_context = read_recent_snapshots_for_prompt(root, chapter_num, count=3, volume_num=volume_num)
+    if snapshots_context:
+        prompt_parts.append(snapshots_context)
+        prompt_parts.append("")
+
     # 8. POV约束（从细纲提取POV角色）
     pov_char = None
     if chapter_outline:
@@ -897,6 +910,8 @@ def generate_agent_prompt(root, config, chapter_num, volume_num):
         prompt_parts.append("- 遵循上述风格指南")
     prompt_parts.append("- 严格遵守POV角色的认知边界，禁止写出该角色不可能知道的信息")
     prompt_parts.append("- 禁止：错别字、语法错误、POV 混乱")
+    prompt_parts.append("- 信息密度递增：每章的事件密度/冲突强度须比上章有所推进，高潮章的密度应显著高于铺垫章，禁止连续两章节奏相同")
+    prompt_parts.append("- 场景重复限制：同一场景模式（如买商品、碰面等相似互动）最多完整描写2次，第3次起需侧面描写或一句话带过")
 
     return '\n'.join(prompt_parts)
 

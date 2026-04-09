@@ -16,10 +16,11 @@ from . import define
 from . import update_specs
 from . import recall
 from . import export
+from . import snapshot
 
 __all__ = [
     'init', 'propose', 'plan', 'volume', 'outline',
     'write', 'review', 'learn', 'style', 'stats',
     'archive', 'status', 'define', 'update_specs',
-    'recall', 'export'
+    'recall', 'export', 'snapshot'
 ]
