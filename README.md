@@ -33,6 +33,7 @@
 | `propose` | 创建创作意图 | "给第一章写个提案" |
 | `define` | 管理设定库 | "创建人物张三"、"查看所有设定" |
 | `volume` | 管理卷结构 | "查看所有卷的状态" |
+| `plan` | 规划流水线 | "生成第一卷的卷纲"、"拆分章节" |
 | `outline` | 编辑大纲 | "写第一卷前5章的章节大纲" |
 | `outline --expand` | 展开场景细节 | "展开第5章的场景" |
 | `outline --swap` | 交换章节顺序 | "把第8章和第10章换一下" |
@@ -85,9 +86,10 @@ my-novel-skill/
 |------|------|
 | `init` | 初始化小说项目 |
 | `propose` | 创建创作意图 |
+| `plan` | 规划流水线（卷纲生成/章节拆分） |
 | `define` | 人物卡/世界观管理 |
 | `volume` | 卷结构管理 |
-| `outline` | 编辑大纲 |
+| `outline` | 编辑大纲（含 Pipeline 模式） |
 | `write` | 写作模式（生成 Agent Prompt） |
 | `review` | 人机差异对比 |
 | `learn` | 风格学习引擎 |
@@ -100,6 +102,34 @@ my-novel-skill/
 | `status` | 项目状态 |
 
 ## AI 协作写作流程
+
+### Pipeline v3 流水线
+
+完整的人机协作写作流水线："AI 生成草稿 → 作者讨论修改 → 确认定稿"
+
+```
+主线 → [AI生成卷纲] → [人审/讨论] → 卷纲定稿
+     → [AI拆章节] → [人审/讨论] → 章节列表定稿
+     → [AI写章节细纲] → [人审/讨论] → 细纲定稿
+     → [AI写正文] → [人审/讨论/修改] → 章节完成
+```
+
+**Pipeline 命令**：
+| 命令 | 说明 |
+|------|------|
+| `story:plan --volume N` | AI 生成卷纲草稿 |
+| `story:plan --volume N --revise` | 讨论修改卷纲 |
+| `story:plan --volume N --confirm` | 确认卷纲定稿 |
+| `story:plan --chapters N` | AI 拆分章节列表 |
+| `story:outline --draft N --all` | 批量生成细纲 |
+| `story:write N --draft` | AI 写正文草稿 |
+
+### Stage 状态流转
+
+- **卷**：`draft` → `confirmed`
+- **章节**：`outline-draft` → `outline-confirmed` → `writing` → `review` → `done`
+
+### 传统人机协作流程
 
 ```
 1. story:write 5        # 生成 Agent Prompt

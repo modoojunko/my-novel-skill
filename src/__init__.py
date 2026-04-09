@@ -2,6 +2,7 @@
 
 from . import init
 from . import propose
+from . import plan
 from . import volume
 from . import outline
 from . import write
@@ -17,7 +18,7 @@ from . import recall
 from . import export
 
 __all__ = [
-    'init', 'propose', 'volume', 'outline',
+    'init', 'propose', 'plan', 'volume', 'outline',
     'write', 'review', 'learn', 'style', 'stats',
     'archive', 'status', 'define', 'update_specs',
     'recall', 'export'

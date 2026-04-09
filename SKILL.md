@@ -136,10 +136,11 @@ flowchart LR
 |------|------|---------|
 | `story:init` | 初始化小说项目 | `[--non-interactive]` |
 | `story:propose` | 创建创作意图 | `[目标] [标题]` |
+| `story:plan` | 规划流水线 | `[--volume N] [--chapters N] [--interactive] [--revise] [--confirm]` |
 | `story:define` | 设定库管理 | `[character/world] [名称] [--list/--view/--edit/--delete]` |
 | `story:volume` | 卷管理 | `[卷号] [--init] [--init-all] [--list]` |
-| `story:outline` | 编辑大纲 | `[target] [--list] [--init-chapters N] [--expand N] [--swap A B]` |
-| `story:write` | 写作模式 | `[章节号] [--new] [--continue N]` |
+| `story:outline` | 编辑大纲 | `[target] [--list] [--draft N] [--revise] [--confirm] [--all] [--volume N]` |
+| `story:write` | 写作模式 | `[章节号] [--draft] [--revise] [--confirm] [--show] [--prompt]` |
 | `story:review` | 人机差异对比 | `[章节号] [--ai FILE] [--stat] [--diff]` |
 | `story:learn` | 风格学习引擎 | `[章节号] [--force]` |
 | `story:style` | 风格档案管理 | `[--prompts] [--full] [--reset]` |
@@ -150,7 +151,7 @@ flowchart LR
 | `story:archive` | 定稿归档 | `[章节号] [--preview] [--dry-run]` |
 | `story:status` | 查看项目状态 | `[--json]` |
 
-别名：`s`->status, `p`->propose, `v`->volume, `w`->write, `a`->archive, `o`->outline, `i`->init, `r`->review, `l`->learn, `t`->style, `u`->stats
+别名：`s`->status, `p`->propose, `n`->plan, `v`->volume, `w`->write, `a`->archive, `o`->outline, `i`->init, `r`->review, `l`->learn, `t`->style, `u`->stats
 
 ---
 
@@ -522,6 +523,26 @@ python {STORY_DIR}/story.py outline 第5章                # 编辑第5章大纲
 
 ### outline 增强功能
 
+#### Pipeline 模式：--draft / --revise / --confirm
+
+在 Pipeline 流程中，outline 用于生成和确认章节细纲：
+
+```bash
+# AI 生成单章细纲草稿
+python {STORY_DIR}/story.py outline --draft 5
+
+# AI 批量生成本卷所有细纲
+python {STORY_DIR}/story.py outline --draft 1 --all
+
+# 讨论模式修改细纲
+python {STORY_DIR}/story.py outline --revise 5
+
+# 确认细纲定稿（stage → outline-confirmed）
+python {STORY_DIR}/story.py outline --confirm 5
+```
+
+**stage 流转**：outline-draft → outline-confirmed
+
 #### --expand（展开场景细节）
 
 当卡文时，使用此功能展开场景的详细写作提示：
@@ -656,6 +677,23 @@ python {STORY_DIR}/story.py write [章节号]
 ## 预期字数
 约 3000 字
 ```
+
+### write 命令增强：Pipeline 模式
+
+在 Pipeline 流程中，write 用于根据细纲写正文：
+
+```bash
+# AI 根据细纲写正文草稿（stage → writing）
+python {STORY_DIR}/story.py write 5 --draft
+
+# 讨论模式修改正文
+python {STORY_DIR}/story.py write 5 --revise
+
+# 确认正文定稿（stage → done）
+python {STORY_DIR}/story.py write 5 --confirm
+```
+
+**stage 流转**：outline-confirmed → writing → review → done
 
 ### write 命令增强：生成 Agent Prompt
 
@@ -1137,6 +1175,147 @@ ARCHIVE/{日期}-chapter-NNN/
 1. 生成归档摘要：本章的核心事件和字数
 2. 检查进度：当前总字数/目标字数，完成百分比
 3. 建议下一步：下一章的大纲是否就绪？是否需要补充设定？
+
+---
+
+## 工作流 14：plan（规划流水线）[MIXED]
+
+卷纲生成与章节拆分，完整的 AI 辅助规划流程。
+
+### 触发条件
+
+- 用户说"生成卷纲"、"拆分章节"、"规划这一卷"
+- 用户想用 AI 辅助设计卷结构
+
+### 核心理念
+
+**AI 负责骨架搭建，作者专注血肉填充**。通过"草稿 → 讨论 → 确认"三阶段迭代，确保大纲质量。
+
+### Pipeline 流程
+
+```mermaid
+flowchart TD
+    A[主线故事] --> B[story:plan --volume 1]
+    B --> C[AI 生成卷纲草稿]
+    C --> D[story:plan --volume 1 --revise]
+    D --> E[作者讨论修改]
+    E --> F[story:plan --volume 1 --confirm]
+    F --> G[卷 stage: draft → confirmed]
+    G --> H[story:plan --chapters 1]
+    H --> I[AI 拆分章节]
+    I --> J[story:plan --chapters 1 --confirm]
+    J --> K[所有章节 stage: outline-draft]
+    K --> L[story:outline --draft 1 --all]
+    L --> M[AI 批量生成细纲]
+    M --> N[story:outline --revise N]
+    N --> O[story:outline --confirm N]
+    O --> P[stage: outline-confirmed]
+    P --> Q[story:write N --draft]
+    Q --> R[AI 写正文]
+    R --> S[story:write N --revise]
+    S --> T[story:write N --confirm]
+    T --> U[stage: done]
+```
+
+### Stage 状态
+
+| 层级 | Stage 值 | 说明 |
+|------|---------|------|
+| 卷 | `draft` | 草稿，可修改 |
+| 卷 | `confirmed` | 定稿 |
+| 章节 | `outline-draft` | 细纲草稿 |
+| 章节 | `outline-confirmed` | 细纲定稿 |
+| 章节 | `writing` | 正在写正文 |
+| 章节 | `review` | 审核中 |
+| 章节 | `done` | 定稿完成 |
+
+### 执行步骤
+
+#### 第一段：卷纲生成 [REASONING]
+
+```bash
+# 读取主线文件生成卷纲
+python {STORY_DIR}/story.py plan --volume 1
+
+# 交互式问答生成卷纲
+python {STORY_DIR}/story.py plan --volume 1 --interactive
+
+# 讨论模式修改卷纲
+python {STORY_DIR}/story.py plan --volume 1 --revise
+
+# 确认卷纲定稿
+python {STORY_DIR}/story.py plan --volume 1 --confirm
+```
+
+**交互式问答收集的信息**：
+- 核心冲突
+- 主角成长弧线
+- 核心事件
+- 情感基调
+
+#### 第二段：章节拆分 [REASONING]
+
+```bash
+# AI 拆分章节列表
+python {STORY_DIR}/story.py plan --chapters 1
+
+# 讨论模式修改章节
+python {STORY_DIR}/story.py plan --chapters 1 --revise
+
+# 确认章节列表（批量初始化 stage）
+python {STORY_DIR}/story.py plan --chapters 1 --confirm
+```
+
+**章节拆分输出格式**：
+```
+| 章节 | POV | 核心内容 | 字数预估 | 情绪基调 |
+|------|-----|---------|---------|---------|
+| 第1章 | 张三 | 开场：主角出场... | ~1500字 | 平静 |
+```
+
+#### 第三段：状态查看 [PROCEDURE]
+
+```bash
+# 查看流水线整体状态
+python {STORY_DIR}/story.py plan --status
+
+# 查看指定卷状态
+python {STORY_DIR}/story.py plan --volume 1 --status
+```
+
+### stage 管理
+
+Stage 信息保存在 `story.json` 的 `pipeline` 字段中：
+
+```json
+{
+  "pipeline": {
+    "volumes": {
+      "1": { "stage": "confirmed" }
+    },
+    "chapters": {
+      "1": { "stage": "outline-confirmed", "volume": 1 },
+      "5": { "stage": "writing", "volume": 1 },
+      "10": { "stage": "done", "volume": 1 }
+    }
+  }
+}
+```
+
+### 关键设计决策
+
+1. **Prompt 保存**：每次生成都保存 Prompt 到文件，方便复审和复用
+2. **批量操作**：`--all` 支持批量生成，如 `story:outline --draft 1 --all`
+3. **无感知的命令切换**：每个 `--confirm` 后自动提示下一步
+4. **可回退**：确认后仍可通过 `--revise` 退回修改
+
+### AI 辅助要点
+
+生成卷纲时，AI 应该：
+1. 读取 `story-concept.md` 或 `story-main.md` 作为主线参考
+2. 参考 `story.json` 中的 genre、theme、volume_titles
+3. 输出包含起承转合、核心事件、高潮设计、伏笔布局的完整卷纲
+4. 明确标注与前后卷的衔接
 
 ---
 

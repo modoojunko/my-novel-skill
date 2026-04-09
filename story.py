@@ -12,7 +12,7 @@ from pathlib import Path
 # 添加 src 目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src import init, propose, volume, outline, write, review, learn, style, stats, archive, status, define, update_specs, recall, export
+from src import init, propose, plan, volume, outline, write, review, learn, style, stats, archive, status, define, update_specs, recall, export
 
 def show_banner():
     """显示横幅"""
@@ -34,9 +34,10 @@ def show_help():
 可用命令：
   init          初始化小说项目
   propose       创建创作意图
+  plan          规划流水线（卷纲生成 + 章节拆分）
   define        管理设定库
   volume        卷管理（初始化/查看/批量操作）
-  outline       编辑大纲
+  outline       编辑大纲（生成章节细纲）
   write         写作模式（生成 Agent Prompt）
   review        人机差异对比与审核
   learn         风格学习引擎
@@ -51,45 +52,45 @@ def show_help():
 示例：
   story:init                      # 初始化项目
   story:propose 第一章             # 创建第一章提案
-  story:define character 张三     # 管理人物设定
-  story:volume --list             # 查看卷结构
-  story:volume --init-all         # 初始化所有卷
-  story:outline --list            # 列出大纲
-  story:outline --init-chapters 1  # 初始化卷1的章节大纲
-  story:outline --expand 5        # 展开第5章场景细节
-  story:outline --swap 8 10       # 交换第8章和第10章大纲
-  story:write 1                   # 生成第1章 Agent Prompt
-  story:review 1 --ai ai.md       # 导入AI内容并对比差异
-  story:learn 1                   # 学习第1章风格
+  story:plan --volume 1           # 生成卷1卷纲（读取主线）
+  story:plan --volume 1 --interactive # 交互式生成卷纲
+  story:plan --volume 1 --revise  # 讨论修改卷纲
+  story:plan --volume 1 --confirm # 确认卷纲定稿
+  story:plan --chapters 1         # 拆分卷1章节
+  story:outline --draft 5         # AI生成第5章细纲
+  story:outline --draft 1 --all   # 批量生成卷1所有细纲
+  story:outline --revise 5        # 讨论修改细纲
+  story:outline --confirm 5        # 确认细纲定稿
+  story:write 5 --draft           # AI根据细纲写正文
+  story:write 5 --revise          # 讨论修改正文
+  story:write 5 --confirm         # 确认正文定稿
   story:recall 5                  # 查看第5章摘要
   story:recall --recent 3         # 查看最近3章摘要
   story:export 1-10               # 导出第1-10章
   story:export --format docx      # 导出为 Word 文档
-  story:update-specs 5            # 分析第5章并更新设定库
-  story:style                     # 查看风格档案
-  story:stats                     # 查看学习进度
-  story:archive 1                  # 归档第一章
-  story:status                    # 查看状态
+  story:status                    # 查看流水线状态
 
-AI 协作写作流程：
-  1. story:write 5             # 生成 Agent Prompt
-  2. Agent 收到 Prompt → 生成内容
-  3. story:review 5 --ai <文件>  # 导入 AI 内容
-  4. 用户修改章节文件
-  5. story:review 5            # 对比差异
-  6. story:learn 5             # 学习风格
-  7. story:update-specs 5      # 检测新设定 + 生成摘要 ← 新增!
-  8. story:recall 5           # 回顾本章摘要 ← 新增!
-  9. story:stats               # 查看进度
-  10. story:export 1-10        # 导出交稿 ← 新增!
+Pipeline 流水线模式：
+  规划阶段：
+    story:plan --volume N         → AI生成卷纲草稿
+    story:plan --volume N --revise → 讨论修改
+    story:plan --volume N --confirm → 确认定稿
+    story:plan --chapters N        → AI拆分章节
+    story:plan --chapters N --confirm → 确认章节
+
+  写作阶段：
+    story:outline --draft N --all  → 批量生成细纲
+    story:outline --revise N       → 讨论修改
+    story:outline --confirm N      → 确认细纲
+    story:write N --draft          → AI写正文
+    story:write N --revise         → 讨论修改
+    story:write N --confirm        → 确认定稿
 
 查看命令帮助：
+  story:plan --help
   story:write --help
-  story:review --help
-  story:learn --help
-  story:recall --help
-  story:export --help
   story:outline --help
+  story:review --help
 """)
 
 def main():
@@ -104,6 +105,7 @@ def main():
     commands = {
         'init': init,
         'propose': propose,
+        'plan': plan,
         'volume': volume,
         'outline': outline,
         'write': write,
@@ -123,6 +125,7 @@ def main():
     aliases = {
         's': 'status',
         'p': 'propose',
+        'n': 'plan',   # n for plan
         'v': 'volume',
         'w': 'write',
         'r': 'review',

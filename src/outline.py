@@ -4,11 +4,17 @@ story:outline - 编辑大纲
 
 提供交互式的大纲编辑功能。
 使用 JSON 作为配置文件格式。
+
+支持流水线模式：
+- --draft: AI 生成章节细纲草稿
+- --revise: 讨论模式修改细纲
+- --confirm: 确认细纲定稿
 """
 
 import os
 import sys
 import json
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -24,6 +30,302 @@ class Colors:
 
 def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
+
+
+# ============================================================
+# Pipeline Stage 管理（从 plan.py 复用）
+# ============================================================
+
+def load_pipeline_state(root: Path) -> dict:
+    """加载/初始化流水线状态"""
+    config_path = root / "story.json"
+    if not config_path.exists():
+        return {"volumes": {}, "chapters": {}}
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    if "pipeline" not in config:
+        config["pipeline"] = {"volumes": {}, "chapters": {}}
+    return config["pipeline"]
+
+
+def save_pipeline_state(root: Path, pipeline: dict) -> None:
+    """保存流水线状态"""
+    config_path = root / "story.json"
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    config["pipeline"] = pipeline
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
+
+def get_chapter_stage(chapter_num: int, root: Path) -> str:
+    """获取章节 stage"""
+    pipeline = load_pipeline_state(root)
+    return pipeline["chapters"].get(str(chapter_num), {}).get("stage", "")
+
+
+def update_chapter_stage(chapter_num: int, new_stage: str, root: Path) -> None:
+    """更新章节 stage"""
+    pipeline = load_pipeline_state(root)
+    if str(chapter_num) not in pipeline["chapters"]:
+        pipeline["chapters"][str(chapter_num)] = {}
+    pipeline["chapters"][str(chapter_num)]["stage"] = new_stage
+    save_pipeline_state(root, pipeline)
+
+
+def get_volume_stage(volume_num: int, root: Path) -> str:
+    """获取卷 stage"""
+    pipeline = load_pipeline_state(root)
+    return pipeline["volumes"].get(str(volume_num), {}).get("stage", "")
+
+
+# ============================================================
+# 章节细纲 AI 生成
+# ============================================================
+
+def generate_chapter_draft_prompt(root: Path, chapter_num: int, config: dict) -> str:
+    """生成章节细纲的 Prompt"""
+    meta = config.get("meta", {})
+    chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    title = meta.get("title", "未命名小说")
+    genre = meta.get("genre", "未知")
+
+    # 读取卷纲
+    vol_outline_path = root / "OUTLINE" / f"volume-{volume_num:03d}" / f"volume-{volume_num:03d}-outline.md"
+    volume_outline = ""
+    if vol_outline_path.exists():
+        volume_outline = vol_outline_path.read_text(encoding="utf-8")
+
+    # 读取上一章细纲（用于衔接）
+    prev_chapter_outline = ""
+    if chapter_num > 1:
+        prev_path = root / "OUTLINE" / f"volume-{volume_num:03d}" / f"chapter-{chapter_num-1:03d}.md"
+        if prev_path.exists():
+            prev_chapter_outline = prev_path.read_text(encoding="utf-8")
+
+    # 读取风格档案
+    style_path = root / "style" / "style.md"
+    style_guide = ""
+    if style_path.exists():
+        style_guide = style_path.read_text(encoding="utf-8")
+
+    prompt = f"""# 第 {chapter_num} 章细纲生成任务
+
+## 基本信息
+- **书名**：{title}
+- **类型**：{genre}
+- **当前卷**：第 {volume_num} 卷
+- **当前章**：第 {chapter_num} 章
+
+## 卷纲摘要
+{volume_outline[:1000] if volume_outline else "（暂无卷纲）"}
+
+{"## 上一章摘要" if prev_chapter_outline else ""}
+{prev_chapter_outline[:500] if prev_chapter_outline else ""}
+
+## 风格指南
+{style_guide[:500] if style_guide else "（暂无风格指南）"}
+
+## 输出格式
+
+请按以下结构输出第 {chapter_num} 章细纲：
+
+```
+# 第 {chapter_num} 章：xxx（章节主题）
+
+## 本章目标
+（本章要完成的核心任务，1-2句话）
+
+## POV
+（本章的主要视点人物）
+
+## 情绪基调
+（本章的情感色彩：紧张/温馨/虐心/热血...）
+
+## 场景列表
+1. [开场] 场景描述 - POV:xxx - 约800字
+   - 核心动作：（发生什么）
+   - 情绪：（此刻人物感受）
+
+2. [发展] 场景描述 - POV:xxx - 约1200字
+   - 核心动作：xxx
+   - 情绪：xxx
+
+3. [转折] 场景描述 - POV:xxx - 约1000字
+   - 核心动作：xxx
+   - 情绪：xxx
+
+4. [结尾] 场景描述 - POV:xxx - 约500字
+   - 悬念/衔接：（留下什么钩子）
+
+## 关键对话
+- 「角色1」：「台词内容」（目的/情绪）
+- 「角色2」：「台词内容」（目的/情绪）
+
+## 伏笔记录
+- 伏笔1：埋下/呼应
+- 伏笔2：...
+
+## 与上章的衔接
+（如何从上一章自然过渡到本章开头）
+
+## 预期字数
+约 3000-4000 字
+
+---
+*此细纲由 AI 生成，可使用 story:outline --revise {chapter_num} 进行讨论修改*
+```
+"""
+    return prompt
+
+
+def generate_chapter_draft(root: Path, chapter_num: int, config: dict) -> None:
+    """生成章节细纲草稿"""
+    chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    vol_dir = root / "OUTLINE" / f"volume-{volume_num:03d}"
+    vol_dir.mkdir(parents=True, exist_ok=True)
+
+    chapter_path = vol_dir / f"chapter-{chapter_num:03d}.md"
+
+    # 检查是否已有细纲
+    if chapter_path.exists():
+        print(f"\n  ⚠️  第 {chapter_num} 章已有细纲：{chapter_path}")
+        print(f"  使用 --revise 进入讨论模式，或 --confirm 确认定稿")
+        return
+
+    # 生成 Prompt
+    prompt = generate_chapter_draft_prompt(root, chapter_num, config)
+
+    print(f"\n{'='*60}")
+    print(f"  第 {chapter_num} 章细纲生成 Prompt")
+    print(f"{'='*60}\n")
+    print(prompt)
+
+    # 保存 Prompt
+    prompt_file = vol_dir / f"chapter-{chapter_num:03d}-draft-prompt.md"
+    with open(prompt_file, "w", encoding="utf-8") as f:
+        f.write(prompt)
+
+    print(f"\n  💡 Prompt 已保存到：{prompt_file}")
+    print(f"\n  下一步：")
+    print(f"    1. 将此 Prompt 发送给 AI 获取细纲草稿")
+    print(f"    2. 将 AI 返回的内容保存到 {chapter_path}")
+    print(f"    3. 使用 story:outline --revise {chapter_num} 进行讨论修改")
+    print(f"    4. 确认后使用 story:outline --confirm {chapter_num}")
+
+    # 更新 stage
+    update_chapter_stage(chapter_num, "outline-draft", root)
+    print(f"\n  ✓ 第 {chapter_num} 章 stage 已更新为: outline-draft")
+
+
+def generate_all_chapter_drafts(root: Path, volume_num: int, config: dict) -> None:
+    """批量生成本卷所有章节细纲"""
+    chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+    start_chapter = (volume_num - 1) * chapters_per + 1
+    end_chapter = volume_num * chapters_per
+
+    print(f"\n{'='*60}")
+    print(f"  批量生成卷 {volume_num} 的章节细纲")
+    print(f"{'='*60}")
+    print(f"\n  卷 {volume_num} 共 {chapters_per} 章（第 {start_chapter} - {end_chapter} 章）")
+    print(f"  将为每章生成细纲生成 Prompt...\n")
+
+    generated = []
+    skipped = []
+
+    for ch_num in range(start_chapter, end_chapter + 1):
+        vol_dir = root / "OUTLINE" / f"volume-{volume_num:03d}"
+        vol_dir.mkdir(parents=True, exist_ok=True)
+        chapter_path = vol_dir / f"chapter-{ch_num:03d}.md"
+
+        if chapter_path.exists():
+            skipped.append(ch_num)
+            continue
+
+        # 生成 Prompt
+        prompt = generate_chapter_draft_prompt(root, ch_num, config)
+        prompt_file = vol_dir / f"chapter-{ch_num:03d}-draft-prompt.md"
+
+        with open(prompt_file, "w", encoding="utf-8") as f:
+            f.write(prompt)
+
+        # 更新 stage
+        update_chapter_stage(ch_num, "outline-draft", root)
+        generated.append(ch_num)
+
+    if generated:
+        print(f"  ✓ 已生成 {len(generated)} 个 Prompt：")
+        for ch in generated[:5]:
+            print(f"       + chapter-{ch:03d}-draft-prompt.md")
+        if len(generated) > 5:
+            print(f"       ... 还有 {len(generated) - 5} 个")
+    if skipped:
+        print(f"  -- 已跳过 {len(skipped)} 个已有细纲的章节")
+
+    print(f"\n  下一步：")
+    print(f"    1. 将 Prompt 文件发送给 AI 获取细纲草稿")
+    print(f"    2. 将 AI 返回的内容保存为 chapter-XXX.md")
+    print(f"    3. 使用 story:outline --revise {start_chapter} 逐章讨论修改")
+    print(f"    4. 全部确认后使用 story:write {start_chapter} --draft 开始写正文")
+
+
+def revise_chapter_outline(root: Path, chapter_num: int, config: dict) -> None:
+    """讨论模式修改章节细纲"""
+    chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    chapter_path = root / "OUTLINE" / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
+
+    if not chapter_path.exists():
+        print(f"\n  错误：第 {chapter_num} 章还没有细纲文件")
+        print(f"  请先使用 story:outline --draft {chapter_num} 生成细纲")
+        return
+
+    current_stage = get_chapter_stage(chapter_num, root)
+    print(f"\n  📝 第 {chapter_num} 章当前 stage: {current_stage or '未设置'}")
+    print(f"\n  请告诉我你想如何修改细纲：")
+    print(f"     1. 调整场景顺序/数量")
+    print(f"     2. 修改 POV")
+    print(f"     3. 调整情绪基调")
+    print(f"     4. 修改关键对话")
+    print(f"     5. 其他修改")
+    print(f"\n  修改完成后，将新内容保存到：{chapter_path}")
+    print(f"  然后使用 story:outline --confirm {chapter_num} 确认定稿")
+
+
+def confirm_chapter_outline(root: Path, chapter_num: int) -> None:
+    """确认章节细纲定稿"""
+    chapters_per = 30  # 默认值
+    try:
+        config_path = root / "story.json"
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+    except:
+        pass
+
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    chapter_path = root / "OUTLINE" / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
+
+    if not chapter_path.exists():
+        print(f"\n  错误：第 {chapter_num} 章还没有细纲文件")
+        print(f"  请先使用 story:outline --draft {chapter_num} 生成细纲")
+        return
+
+    update_chapter_stage(chapter_num, "outline-confirmed", root)
+
+    print(f"\n  ✓ 第 {chapter_num} 章细纲已确认定稿")
+    print(f"  ✓ stage 已更新为: outline-confirmed")
+    print(f"\n  下一步建议：")
+    print(f"    story:write {chapter_num} --draft  →  AI 根据细纲写正文")
+    print(f"    story:outline --revise {chapter_num}  →  继续修改细纲")
+
 
 def find_project_root():
     """查找项目根目录"""
@@ -445,7 +747,6 @@ def show_swap_help():
 
 def main():
     import argparse
-    import re  # 添加 re 模块
 
     parser = argparse.ArgumentParser(description='编辑大纲')
     parser.add_argument('target', nargs='?', help='目标（meta/卷1/章节1）')
@@ -460,6 +761,17 @@ def main():
     # 新增：swap 功能
     parser.add_argument('--swap', nargs=2, type=int, metavar=('A', 'B'),
                         help='交换两个章节的大纲顺序')
+    # Pipeline 功能
+    parser.add_argument('--draft', '-d', type=int, metavar='CHAPTER',
+                        help='AI 生成章节细纲草稿')
+    parser.add_argument('--revise', '-r', action='store_true',
+                        help='讨论模式修改细纲')
+    parser.add_argument('--confirm', action='store_true',
+                        help='确认细纲定稿')
+    parser.add_argument('--all', '-a', action='store_true',
+                        help='批量处理（需配合 --draft 使用）')
+    parser.add_argument('--volume', '-v', type=int, metavar='N',
+                        help='卷号（需配合 --draft --all 使用）')
 
     args = parser.parse_args()
 
@@ -537,6 +849,44 @@ def main():
 
         print(c(f"  ✅ 已交换第{chapter_a}章和第{chapter_b}章的大纲", Colors.GREEN))
         print()
+        return
+
+    # Pipeline: --draft 生成章节细纲
+    if args.draft:
+        chapter_num = args.draft
+
+        if args.all and args.volume:
+            # 批量生成
+            generate_all_chapter_drafts(root, args.volume, config)
+        else:
+            # 单章生成
+            generate_chapter_draft(root, chapter_num, config)
+        return
+
+    # Pipeline: --revise 讨论模式
+    if args.revise:
+        if not args.target:
+            print(f"  错误：请指定要讨论的章节号，如 story:outline --revise 5")
+            sys.exit(1)
+        match = re.search(r'(\d+)', str(args.target))
+        if not match:
+            print(f"  错误：无法解析章节号")
+            sys.exit(1)
+        chapter_num = int(match.group(1))
+        revise_chapter_outline(root, chapter_num, config)
+        return
+
+    # Pipeline: --confirm 确认细纲
+    if args.confirm:
+        if not args.target:
+            print(f"  错误：请指定要确认的章节号，如 story:outline --confirm 5")
+            sys.exit(1)
+        match = re.search(r'(\d+)', str(args.target))
+        if not match:
+            print(f"  错误：无法解析章节号")
+            sys.exit(1)
+        chapter_num = int(match.group(1))
+        confirm_chapter_outline(root, chapter_num)
         return
 
     if args.list or not args.target:

@@ -7,6 +7,11 @@ story:write - 写作模式 + Agent Prompt 生成
 1. 手动写作：创建文件框架，人工写作
 2. Agent Prompt：生成结构化 Prompt，供 Agent 使用
 
+Pipeline 模式：
+- --draft: AI 根据细纲写正文草稿
+- --revise: 讨论模式修改正文
+- --confirm: 确认正文定稿
+
 使用 JSON 作为配置文件格式。
 """
 
@@ -87,6 +92,241 @@ def truncate_text(text: str, max_chars: int = 500, suffix: str = "...") -> str:
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + suffix
+
+
+# ============================================================================
+# Pipeline Stage 管理
+# ============================================================================
+
+def load_pipeline_state(root: Path) -> dict:
+    """加载/初始化流水线状态"""
+    config_path = root / "story.json"
+    if not config_path.exists():
+        return {"volumes": {}, "chapters": {}}
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    if "pipeline" not in config:
+        config["pipeline"] = {"volumes": {}, "chapters": {}}
+    return config["pipeline"]
+
+
+def save_pipeline_state(root: Path, pipeline: dict) -> None:
+    """保存流水线状态"""
+    config_path = root / "story.json"
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    config["pipeline"] = pipeline
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
+
+def get_chapter_stage(chapter_num: int, root: Path) -> str:
+    """获取章节 stage"""
+    pipeline = load_pipeline_state(root)
+    return pipeline["chapters"].get(str(chapter_num), {}).get("stage", "")
+
+
+def update_chapter_stage(chapter_num: int, new_stage: str, root: Path) -> None:
+    """更新章节 stage"""
+    pipeline = load_pipeline_state(root)
+    if str(chapter_num) not in pipeline["chapters"]:
+        pipeline["chapters"][str(chapter_num)] = {}
+    pipeline["chapters"][str(chapter_num)]["stage"] = new_stage
+    save_pipeline_state(root, pipeline)
+
+
+# ============================================================================
+# Pipeline: 正文写作功能
+# ============================================================================
+
+def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, config: dict) -> str:
+    """生成正文写作的 Prompt（用于 AI 写正文）"""
+    meta = config.get("meta", {})
+    title = meta.get("title", "未命名小说")
+    genre = meta.get("genre", "未知")
+
+    # 读取章节细纲
+    outline_path = root / "OUTLINE" / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
+    chapter_outline = ""
+    if outline_path.exists():
+        chapter_outline = outline_path.read_text(encoding="utf-8")
+
+    # 读取卷纲
+    vol_outline_path = root / "OUTLINE" / f"volume-{volume_num:03d}" / f"volume-{volume_num:03d}-outline.md"
+    volume_outline = ""
+    if vol_outline_path.exists():
+        volume_outline = vol_outline_path.read_text(encoding="utf-8")
+
+    # 读取上一章结尾
+    prev_ending = ""
+    if chapter_num > 1:
+        prev_path = root / "CONTENT" / f"volume-{volume_num}" / f"chapter-{chapter_num-1:03d}.md"
+        if prev_path.exists():
+            content = prev_path.read_text(encoding="utf-8")
+            if len(content) > 500:
+                prev_ending = "..." + content[-500:]
+
+    # 读取风格档案
+    style_path = root / "style" / "style.md"
+    style_guide = ""
+    if style_path.exists():
+        style_guide = style_path.read_text(encoding="utf-8")
+
+    # 读取人物设定
+    characters = ""
+    chars_dir = root / "SPECS" / "characters"
+    if chars_dir.exists():
+        parts = []
+        for char_file in sorted(chars_dir.glob("*.md")):
+            parts.append(f"### {char_file.stem}\n")
+            parts.append(char_file.read_text(encoding="utf-8"))
+        characters = "\n".join(parts)
+
+    prompt = f"""# 第 {chapter_num} 章正文写作任务
+
+## 基本信息
+- **书名**：《{title}》
+- **类型**：{genre}
+- **当前卷**：第 {volume_num} 卷
+- **当前章**：第 {chapter_num} 章
+
+## 章节细纲
+{chapter_outline if chapter_outline else "（暂无细纲，请根据卷纲自由发挥）"}
+
+## 卷纲背景
+{truncate_text(volume_outline, 800) if volume_outline else "（暂无卷纲）"}
+
+## 上章结尾（需要衔接）
+{truncate_text(prev_ending, 500) if prev_ending else "（本章为第一章）"}
+
+## 人物设定参考
+{characters[:500] if characters else "（暂无人物设定）"}
+
+## 风格指南
+{truncate_text(style_guide, 500) if style_guide else "（暂无风格指南，请保持自然流畅）"}
+
+## 写作要求
+
+1. **字数**：3000-4000 字
+2. **POV**：严格按照细纲中的 POV 视角写作
+3. **场景**：按照细纲中的场景列表展开
+4. **衔接**：开头必须自然衔接上章结尾
+5. **风格**：遵循上述风格指南
+
+## 输出格式
+
+请直接输出正文内容，不需要额外说明。正文格式：
+
+```
+# 第 {chapter_num} 章：xxx（章节主题）
+
+（正文内容...）
+```
+
+---
+*此 Prompt 用于生成正文草稿，可使用 story:write {chapter_num} --revise 进行讨论修改*
+"""
+    return prompt
+
+
+def draft_chapter(root: Path, chapter_num: int) -> None:
+    """生成章节正文草稿"""
+    config = load_config(root)
+    chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    # 检查细纲是否已确认
+    stage = get_chapter_stage(chapter_num, root)
+    if stage not in ["outline-confirmed", "writing"]:
+        print(f"\n  ⚠️  第 {chapter_num} 章细纲尚未确认（stage: {stage or '未设置'}）")
+        print(f"  建议先使用 story:outline --draft {chapter_num} 生成细纲")
+        print(f"  然后使用 story:outline --confirm {chapter_num} 确认细纲")
+        print(f"\n  如需强制生成正文，请先确认细纲")
+        return
+
+    vol_dir = root / "OUTLINE" / f"volume-{volume_num:03d}"
+    vol_dir.mkdir(parents=True, exist_ok=True)
+
+    prompt = generate_writing_prompt(root, chapter_num, volume_num, config)
+
+    print(f"\n{'='*60}")
+    print(f"  第 {chapter_num} 章正文写作 Prompt")
+    print(f"{'='*60}\n")
+    print(prompt)
+
+    # 保存 Prompt
+    prompt_file = vol_dir / f"chapter-{chapter_num:03d}-writing-prompt.md"
+    with open(prompt_file, "w", encoding="utf-8") as f:
+        f.write(prompt)
+
+    print(f"\n  💡 Prompt 已保存到：{prompt_file}")
+    print(f"\n  下一步：")
+    print(f"    1. 将此 Prompt 发送给 AI 获取正文草稿")
+    print(f"    2. 将 AI 返回的内容保存到 CONTENT/volume-{volume_num}/chapter-{chapter_num:03d}.md")
+    print(f"    3. 使用 story:write {chapter_num} --revise 进行讨论修改")
+    print(f"    4. 确认后使用 story:write {chapter_num} --confirm")
+
+    # 更新 stage
+    update_chapter_stage(chapter_num, "writing", root)
+    print(f"\n  ✓ 第 {chapter_num} 章 stage 已更新为: writing")
+
+
+def revise_chapter(root: Path, chapter_num: int) -> None:
+    """讨论模式修改正文"""
+    config = load_config(root)
+    chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    chapter_path = root / "CONTENT" / f"volume-{volume_num}" / f"chapter-{chapter_num:03d}.md"
+
+    if not chapter_path.exists():
+        print(f"\n  错误：第 {chapter_num} 章还没有正文文件")
+        print(f"  请先使用 story:write {chapter_num} --draft 生成正文草稿")
+        return
+
+    current_stage = get_chapter_stage(chapter_num, root)
+    print(f"\n  📝 第 {chapter_num} 章当前 stage: {current_stage or '未设置'}")
+    print(f"\n  请告诉我你想如何修改正文：")
+    print(f"     1. 修改某个场景的内容")
+    print(f"     2. 调整对话")
+    print(f"     3. 优化某个段落")
+    print(f"     4. 修改结尾/衔接")
+    print(f"     5. 其他修改")
+    print(f"\n  修改完成后，将新内容保存到：{chapter_path}")
+    print(f"  然后使用 story:write {chapter_num} --confirm 确认定稿")
+
+
+def confirm_chapter(root: Path, chapter_num: int) -> None:
+    """确认章节正文定稿"""
+    config = load_config(root)
+    chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+    volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    chapter_path = root / "CONTENT" / f"volume-{volume_num}" / f"chapter-{chapter_num:03d}.md"
+
+    if not chapter_path.exists():
+        print(f"\n  错误：第 {chapter_num} 章还没有正文文件")
+        print(f"  请先使用 story:write {chapter_num} --draft 生成正文草稿")
+        return
+
+    update_chapter_stage(chapter_num, "done", root)
+
+    # 统计字数
+    content = chapter_path.read_text(encoding="utf-8")
+    word_count = sum(1 for c in content if "\u4e00" <= c <= "\u9fff")
+
+    print(f"\n  ✓ 第 {chapter_num} 章正文已确认定稿")
+    print(f"  ✓ stage 已更新为: done")
+    print(f"  ✓ 章节字数：约 {word_count} 字")
+    print(f"\n  恭喜完成本章！")
+    print(f"\n  下一步建议：")
+    print(f"    story:update-specs {chapter_num}  →  检测新设定并生成摘要")
+    print(f"    story:write {chapter_num + 1} --draft  →  继续下一章")
+
+
+# ============================================================================
+# 上下文读取函数
+# ============================================================================
 
 
 # ============================================================================
@@ -470,6 +710,11 @@ def main():
   python story.py write 5 --prompt            # 仅显示 Prompt 部分
   python story.py write 5 --context           # 显示上下文信息
 
+Pipeline 模式：
+  python story.py write 5 --draft            # AI 根据细纲写正文草稿
+  python story.py write 5 --revise            # 讨论模式修改正文
+  python story.py write 5 --confirm           # 确认正文定稿
+
 提示：
   使用 --show 或 --prompt 可以生成供 AI Agent 使用的结构化 Prompt。
   Agent 收到 Prompt 后生成内容，你可以通过 story:review 导入进行对比。
@@ -486,6 +731,13 @@ def main():
                         help='导入 AI 生成的内容文件')
     parser.add_argument('--new', '-n', action='store_true',
                         help='强制创建新章节（覆盖已有）')
+    # Pipeline 功能
+    parser.add_argument('--draft', '-d', action='store_true',
+                        help='AI 根据细纲写正文草稿')
+    parser.add_argument('--revise', '-r', action='store_true',
+                        help='讨论模式修改正文')
+    parser.add_argument('--confirm', '-c', action='store_true',
+                        help='确认正文定稿')
 
     args = parser.parse_args()
 
@@ -508,6 +760,30 @@ def main():
     # 计算卷号
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
+
+    # Pipeline: --draft 生成正文草稿
+    if args.draft:
+        if not chapter_num:
+            print(f"  {c('[ERROR] 请指定章节号，如 story:write 5 --draft', Colors.RED)}")
+            sys.exit(1)
+        draft_chapter(root, chapter_num)
+        return
+
+    # Pipeline: --revise 讨论模式
+    if args.revise:
+        if not chapter_num:
+            print(f"  {c('[ERROR] 请指定章节号，如 story:write 5 --revise', Colors.RED)}")
+            sys.exit(1)
+        revise_chapter(root, chapter_num)
+        return
+
+    # Pipeline: --confirm 确认正文
+    if args.confirm:
+        if not chapter_num:
+            print(f"  {c('[ERROR] 请指定章节号，如 story:write 5 --confirm', Colors.RED)}")
+            sys.exit(1)
+        confirm_chapter(root, chapter_num)
+        return
 
     # 如果只是生成 Prompt（不创建文件）
     if args.show or args.prompt:
