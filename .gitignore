@@ -13,3 +13,6 @@ Thumbs.db
 
 # WorkBuddy local data
 .workbuddy/
+
+# Story data (user-generated, not part of the skill)
+stories/
