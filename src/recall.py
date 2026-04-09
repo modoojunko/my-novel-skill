@@ -12,6 +12,7 @@ import re
 import argparse
 from pathlib import Path
 from typing import List, Tuple, Optional
+from .paths import find_project_root, load_config, load_project_paths
 from .snapshot import read_chapter_snapshot, _strip_frontmatter
 
 
@@ -31,38 +32,10 @@ def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
 
+
 # ============================================================================
 # 工具函数
 # ============================================================================
-
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists() or (current / 'story.yml').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
-
-
-def load_config(root):
-    """加载配置"""
-    import json
-    config_path = root / 'story.json'
-    if not config_path.exists():
-        config_path = root / 'story.yml'
-
-    if config_path.suffix == '.json':
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    else:
-        import yaml
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
 
 
 def get_chapter_volume(chapter_num: int, chapters_per: int = 30) -> int:
@@ -109,7 +82,7 @@ def parse_chapter_range(range_str: str, chapters_per: int = 30) -> Tuple[int, in
 def get_summary_path(root: Path, chapter_num: int, chapters_per: int = 30) -> Path:
     """获取章节摘要文件路径"""
     volume_num = get_chapter_volume(chapter_num, chapters_per)
-    summary_dir = root / 'OUTLINE' / f'volume-{volume_num}' / 'summaries'
+    summary_dir = root / 'OUTLINE' / f'volume-{volume_num:03d}' / 'summaries'
     return summary_dir / f'chapter-{chapter_num:03d}-summary.md'
 
 
@@ -150,12 +123,14 @@ def read_summary(summary_path: Path) -> Tuple[Optional[str], dict]:
     return content, meta
 
 
-def get_latest_chapter(root: Path, config: dict) -> int:
+def get_latest_chapter(root: Path, config: dict, paths: dict = None) -> int:
     """获取当前最新章节号"""
+    if paths is None:
+        paths = load_project_paths(root)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
 
-    # 从 CONTENT 目录获取
-    content_dir = root / 'CONTENT'
+    # 从 output_dir 目录获取
+    content_dir = paths['output_dir']
     if content_dir.exists():
         chapters = list(content_dir.glob('**/chapter-*.md'))
         if chapters:
@@ -287,12 +262,13 @@ def main():
         sys.exit(1)
 
     config = load_config(root)
+    paths = load_project_paths(root)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
 
     # 确定要显示的章节范围
     if args.recent:
         # 查看最近 N 章
-        latest = get_latest_chapter(root, config)
+        latest = get_latest_chapter(root, config, paths=paths)
         start = max(1, latest - args.recent + 1)
         chapters = list(range(start, latest + 1))
         print(f"\n{c('📖 章节回顾（最近 {} 章）'.format(args.recent), Colors.CYAN)}")
@@ -308,7 +284,7 @@ def main():
 
     else:
         # 默认查看最近 3 章
-        latest = get_latest_chapter(root, config)
+        latest = get_latest_chapter(root, config, paths=paths)
         start = max(1, latest - 2)
         chapters = list(range(start, latest + 1))
         print(f"\n{c('📖 章节回顾（最近 3 章）', Colors.CYAN)}")

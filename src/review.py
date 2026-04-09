@@ -20,6 +20,7 @@ import difflib
 from pathlib import Path
 from datetime import datetime
 from collections import Counter
+from .paths import find_project_root, load_config, load_project_paths
 
 
 class Colors:
@@ -38,36 +39,19 @@ def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
 
+
 # ============================================================================
 # 工具函数
 # ============================================================================
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
 
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-
-def get_chapter_path(root, chapter_num):
+def get_chapter_path(root, chapter_num, paths=None):
     """获取章节文件路径"""
+    if paths is None:
+        paths = load_project_paths(root)
     chapters_per = 30
     volume_num = ((chapter_num - 1) // chapters_per) + 1
-    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    chapter_path = paths['output_dir'] / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
     return chapter_path, volume_num
 
 
@@ -426,8 +410,10 @@ def load_review_history(root, chapter_num: int) -> dict:
 # 命令行接口
 # ============================================================================
 
-def cmd_import(root, chapter_num: int, ai_file: str):
+def cmd_import(root, chapter_num: int, ai_file: str, paths=None):
     """导入 AI 内容"""
+    if paths is None:
+        paths = load_project_paths(root)
     ai_path = Path(ai_file)
     if not ai_path.exists():
         print(f"  {c(f'[ERROR] 文件不存在：{ai_file}', Colors.RED)}")
@@ -437,7 +423,7 @@ def cmd_import(root, chapter_num: int, ai_file: str):
     chars = count_chinese_chars(extract_text_from_markdown(content))
 
     # 保存到草稿目录
-    draft_dir = root / 'CONTENT' / 'draft'
+    draft_dir = paths['draft']
     draft_dir.mkdir(exist_ok=True)
 
     draft_path = draft_dir / f'chapter-{chapter_num:03d}.ai-draft.md'
@@ -457,13 +443,15 @@ def cmd_import(root, chapter_num: int, ai_file: str):
 """)
 
 
-def cmd_compare(root, chapter_num: int):
+def cmd_compare(root, chapter_num: int, paths=None):
     """对比差异"""
-    chapter_path, volume_num = get_chapter_path(root, chapter_num)
+    if paths is None:
+        paths = load_project_paths(root)
+    chapter_path, volume_num = get_chapter_path(root, chapter_num, paths=paths)
 
     # 查找 AI 原始版本
-    draft_path = root / 'CONTENT' / 'draft' / f'chapter-{chapter_num:03d}.ai-draft.md'
-    history_dir = root / 'STYLE' / 'history' / f'chapter-{chapter_num:03d}'
+    draft_path = paths['draft'] / f'chapter-{chapter_num:03d}.ai-draft.md'
+    history_dir = paths['style_history'] / f'chapter-{chapter_num:03d}'
 
     # 确定 AI 原始内容
     if history_dir.exists():
@@ -599,10 +587,12 @@ def main():
         print(f"  {c('[ERROR] 未找到项目目录', Colors.RED)}")
         sys.exit(1)
 
+    paths = load_project_paths(root)
+
     # 如果有 --ai 参数，先导入
     if args.ai:
         chapter_num = args.chapter or 1
-        cmd_import(root, chapter_num, args.ai)
+        cmd_import(root, chapter_num, args.ai, paths=paths)
         return
 
     if not args.chapter:
@@ -617,7 +607,7 @@ def main():
     elif args.history:
         show_history_list(root, args.chapter)
     else:
-        cmd_compare(root, args.chapter)
+        cmd_compare(root, args.chapter, paths=paths)
 
 
 def show_history_list(root, chapter_num: int):

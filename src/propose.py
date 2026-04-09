@@ -95,7 +95,7 @@ def create_proposal(root: Path, target_type: str, target_id: str, title: str = N
     if target_type == 'concept':
         proposals_dir = root / 'SPECS' / 'meta' / 'proposals'
     elif target_type == 'volume':
-        proposals_dir = root / 'OUTLINE' / f'volume-{target_id}' / 'proposals'
+        proposals_dir = root / 'OUTLINE' / f'volume-{int(target_id):03d}' / 'proposals'
     else:
         proposals_dir = root / 'OUTLINE' / 'proposals'
 
@@ -193,6 +193,7 @@ def main():
     parser = argparse.ArgumentParser(description='创建创作意图')
     parser.add_argument('target', nargs='?', help='目标（第一章/卷1/概念）')
     parser.add_argument('title', nargs='?', help='提案标题')
+    parser.add_argument('--non-interactive', action='store_true', help='非交互模式（Agent 驱动）')
 
     args = parser.parse_args()
 
@@ -209,6 +210,10 @@ def main():
     # 解析目标
     if args.target:
         target_type, target_id = parse_target(args.target)
+    elif args.non_interactive:
+        print(f"  [ERROR] 非交互模式必须指定 target 参数")
+        print(f"  用法：story:propose <target> [title]")
+        sys.exit(1)
     else:
         print("  选择目标类型：")
         print("    1. 故事概念")

@@ -13,6 +13,7 @@ import argparse
 from pathlib import Path
 from typing import List, Tuple, Optional
 from datetime import datetime
+from .paths import find_project_root, load_config, load_project_paths
 
 
 class Colors:
@@ -31,37 +32,10 @@ def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
 
+
 # ============================================================================
 # 工具函数
 # ============================================================================
-
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists() or (current / 'story.yml').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
-
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    if not config_path.exists():
-        config_path = root / 'story.yml'
-
-    if config_path.suffix == '.json':
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    else:
-        import yaml
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
 
 
 def get_chapter_volume(chapter_num: int, chapters_per: int = 30) -> int:
@@ -102,10 +76,12 @@ def parse_export_range(range_str: str, chapters_per: int = 30) -> Tuple[int, int
     return 1, 1
 
 
-def get_chapter_path(root: Path, chapter_num: int, chapters_per: int = 30) -> Path:
+def get_chapter_path(root: Path, chapter_num: int, chapters_per: int = 30, paths: dict = None) -> Path:
     """获取章节文件路径"""
+    if paths is None:
+        paths = load_project_paths(root)
     volume_num = get_chapter_volume(chapter_num, chapters_per)
-    return root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    return paths['output_dir'] / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
 
 
 def strip_frontmatter(content: str) -> str:
@@ -156,13 +132,14 @@ def count_words(text: str) -> int:
 # ============================================================================
 
 def export_to_txt(root: Path, chapters: List[int], chapters_per: int,
-                  config: dict, output_path: Path) -> str:
+                  config: dict, output_path: Path, paths: dict = None) -> str:
     """导出为纯文本格式"""
-    content_dir = root / 'CONTENT'
+    if paths is None:
+        paths = load_project_paths(root)
     chapter_contents = []
 
     for chapter_num in chapters:
-        chapter_path = get_chapter_path(root, chapter_num, chapters_per)
+        chapter_path = get_chapter_path(root, chapter_num, chapters_per, paths=paths)
 
         if not chapter_path.exists():
             print(f"  {c(f'[警告] 第{chapter_num}章不存在，跳过', Colors.YELLOW)}")
@@ -194,13 +171,14 @@ def export_to_txt(root: Path, chapters: List[int], chapters_per: int,
 
 
 def export_to_docx(root: Path, chapters: List[int], chapters_per: int,
-                   config: dict, output_path: Path) -> bool:
+                   config: dict, output_path: Path, paths: dict = None) -> bool:
     """导出为 docx 格式"""
-    content_dir = root / 'CONTENT'
+    if paths is None:
+        paths = load_project_paths(root)
     chapter_contents = []
 
     for chapter_num in chapters:
-        chapter_path = get_chapter_path(root, chapter_num, chapters_per)
+        chapter_path = get_chapter_path(root, chapter_num, chapters_per, paths=paths)
 
         if not chapter_path.exists():
             print(f"  {c(f'[警告] 第{chapter_num}章不存在，跳过', Colors.YELLOW)}")
@@ -280,9 +258,11 @@ def export_to_docx(root: Path, chapters: List[int], chapters_per: int,
     return True
 
 
-def ensure_export_dir(root: Path) -> Path:
+def ensure_export_dir(root: Path, paths: dict = None) -> Path:
     """确保导出目录存在"""
-    export_dir = root / 'EXPORT'
+    if paths is None:
+        paths = load_project_paths(root)
+    export_dir = paths['export']
     export_dir.mkdir(exist_ok=True)
     return export_dir
 
@@ -325,6 +305,7 @@ def main():
         sys.exit(1)
 
     config = load_config(root)
+    paths = load_project_paths(root)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
     total_volumes = config.get('structure', {}).get('volumes', 1)
 
@@ -339,7 +320,7 @@ def main():
         start_ch = (vol_num - 1) * chapters_per + 1
         end_ch = vol_num * chapters_per
         chapters = list(range(start_ch, end_ch + 1))
-        default_name = f"volume-{vol_num}"
+        default_name = f"volume-{vol_num:03d}"
         print(f"\n{c(f'📤 导出第{vol_num}卷', Colors.CYAN)}")
 
     elif args.range:
@@ -365,7 +346,7 @@ def main():
     print(f"  {c('章节数:', Colors.DIM)} {len(chapters)} 章")
 
     # 确定输出路径
-    export_dir = ensure_export_dir(root)
+    export_dir = ensure_export_dir(root, paths=paths)
 
     if args.output:
         # 用户指定文件名
@@ -381,9 +362,9 @@ def main():
 
     # 导出
     if args.format == 'docx':
-        success = export_to_docx(root, chapters, chapters_per, config, output_path)
+        success = export_to_docx(root, chapters, chapters_per, config, output_path, paths=paths)
     else:
-        content = export_to_txt(root, chapters, chapters_per, config, output_path)
+        content = export_to_txt(root, chapters, chapters_per, config, output_path, paths=paths)
         success = True
         word_count = count_words(content)
 

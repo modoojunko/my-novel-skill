@@ -163,33 +163,99 @@ def collect_world() -> str:
     world = input_with_default("世界观/背景（跳过直接回车）")
     return world
 
-def create_directory_structure(base_path: Path, volumes: int = 1):
-    """创建目录结构"""
+def collect_project_dirs(base_path: Path) -> dict:
+    """收集项目目录配置：小说目录、过程文件目录、最终输出目录"""
+    print(f"\n{c('[DIRS] 目录配置', Colors.BOLD)}")
+    print("-" * 50)
+    print("  可将过程文件和最终输出分到不同目录，方便管理")
+    print()
+
+    project_root = input_with_default("  小说项目目录", str(base_path))
+
+    default_process = str(Path(project_root) / "process")
+    process_dir = input_with_default("  过程文件目录（prompts、快照、摘要、提案等）", default_process)
+
+    default_output = str(Path(project_root) / "output")
+    output_dir = input_with_default("  最终输出目录（小说正文、导出文件等）", default_output)
+
+    print()
+    return {
+        "project_root": Path(project_root).resolve(),
+        "process_dir": Path(process_dir).resolve(),
+        "output_dir": Path(output_dir).resolve(),
+    }
+
+def create_directory_structure(base_path: Path, process_dir: Path, output_dir: Path, volumes: int = 1):
+    """创建目录结构（按三个目录分别创建）"""
     print(f"\n{c('[DIR] 创建目录结构...', Colors.CYAN)}")
 
-    dirs = [
+    # === 小说项目目录（设定与大纲） ===
+    project_dirs = [
         "SPECS/characters",
         "SPECS/world",
         "SPECS/meta",
         "OUTLINE",
-        "CONTENT/draft",
-        "ARCHIVE",
+        "STYLE/prompts",
+        "STYLE/history",
         "templates",
     ]
-
-    # 按卷数创建 CONTENT/volume-N 目录
+    # 卷大纲目录（含章节细纲、快照、摘要）
     for i in range(1, volumes + 1):
-        dirs.append(f"CONTENT/volume-{i}")
+        vol_dir = f"volume-{i:03d}"
+        project_dirs.append(f"OUTLINE/{vol_dir}")
+        project_dirs.append(f"OUTLINE/{vol_dir}/snapshots")
+        project_dirs.append(f"OUTLINE/{vol_dir}/summaries")
 
-    for d in dirs:
+    # === 过程文件目录（AI 生成的中间产物） ===
+    process_dirs = [
+        "draft",
+        "summaries",
+        "snapshots",
+        "proposals",
+        "prompts",
+    ]
+
+    # === 最终输出目录（小说正文与导出） ===
+    output_dirs = [
+        "export",
+        "archive",
+    ]
+    for i in range(1, volumes + 1):
+        output_dirs.append(f"volume-{i:03d}")
+
+    # 创建所有目录
+    for d in project_dirs:
         full_path = base_path / d
         full_path.mkdir(parents=True, exist_ok=True)
 
-    print(f"  {c('OK 目录结构创建完成', Colors.GREEN)}")
+    for d in process_dirs:
+        full_path = process_dir / d
+        full_path.mkdir(parents=True, exist_ok=True)
 
-def create_config(base_path: Path, info: dict, logline: str, world: str, characters: list, volume_titles: list = None):
+    for d in output_dirs:
+        full_path = output_dir / d
+        full_path.mkdir(parents=True, exist_ok=True)
+
+    # 打印创建结果
+    print(f"  {c('OK 小说目录', Colors.GREEN)}  {base_path}")
+    if process_dir != base_path:
+        print(f"  {c('OK 过程文件目录', Colors.GREEN)}  {process_dir}")
+    else:
+        print(f"  {c('OK 过程文件目录', Colors.GREEN)}  {process_dir}  （同小说目录）")
+    if output_dir != base_path:
+        print(f"  {c('OK 最终输出目录', Colors.GREEN)}  {output_dir}")
+    else:
+        print(f"  {c('OK 最终输出目录', Colors.GREEN)}  {output_dir}  （同小说目录）")
+
+def create_config(base_path: Path, info: dict, logline: str, world: str, characters: list, volume_titles: list = None, process_dir: Path = None, output_dir: Path = None):
     """创建配置文件（JSON格式）"""
     print(f"\n{c('[CFG] 创建配置文件...', Colors.CYAN)}")
+
+    # 默认 process_dir / output_dir 指向 base_path
+    if process_dir is None:
+        process_dir = base_path
+    if output_dir is None:
+        output_dir = base_path
 
     # 构建 volume_titles，确保与卷数一致
     if volume_titles is None:
@@ -236,10 +302,18 @@ def create_config(base_path: Path, info: dict, logline: str, world: str, charact
             "meta_dir": "SPECS/meta"
         },
         "paths": {
+            "project_root": str(base_path),
+            "process_dir": str(process_dir),
+            "output_dir": str(output_dir),
             "outline_dir": "OUTLINE",
             "content_dir": "CONTENT",
             "archive_dir": "ARCHIVE",
             "draft_dir": "CONTENT/draft",
+            "summaries_dir": "CONTENT/summaries",
+            "style_dir": "STYLE",
+            "style_prompts_dir": "STYLE/prompts",
+            "style_history_dir": "STYLE/history",
+            "export_dir": "EXPORT",
             "templates_dir": "templates"
         },
         "style": {
@@ -372,7 +446,7 @@ def create_outline_files(base_path: Path, info: dict, volume_titles: list = None
         title = vt.get('title', f"第{vol_num}卷")
         theme = vt.get('theme', '')
 
-        vol_path = base_path / 'OUTLINE' / f'volume-{vol_num}.md'
+        vol_path = base_path / 'OUTLINE' / f'volume-{vol_num:03d}.md'
 
         chapters_content = []
         for i in range(1, chapters_per + 1):
@@ -404,7 +478,7 @@ def create_outline_files(base_path: Path, info: dict, volume_titles: list = None
         with open(vol_path, 'w', encoding='utf-8') as f:
             f.write(vol_content)
 
-        print(f"  {c(f'OK OUTLINE/volume-{vol_num}.md', Colors.GREEN)}")
+        print(f"  {c(f'OK OUTLINE/volume-{vol_num:03d}.md', Colors.GREEN)}")
 
 def create_templates(base_path: Path):
     """创建模板文件"""
@@ -573,8 +647,13 @@ Thumbs.db
 
     print(f"  {c('OK .gitignore', Colors.GREEN)}")
 
-def show_success(base_path: Path, info: dict):
+def show_success(base_path: Path, info: dict, process_dir: Path = None, output_dir: Path = None):
     """显示成功信息"""
+    if process_dir is None:
+        process_dir = base_path
+    if output_dir is None:
+        output_dir = base_path
+
     print(f"""
 +----------------------------------------------------+
 |                                                    |
@@ -583,17 +662,27 @@ def show_success(base_path: Path, info: dict):
 +----------------------------------------------------+
 
   项目：{c(info['title'], Colors.BOLD)}
-  位置：{base_path}
 
-  目录结构：
-  -- SPECS/          设定库
-  |   -- characters/ 人物设定
-  |   -- world/     世界观
-  |   -- meta/      故事概念
-  -- OUTLINE/        大纲
-  -- CONTENT/        正文
-  -- ARCHIVE/        归档
-  -- story.json      配置文件
+  三大目录：
+  1. 小说目录：    {base_path}
+     -- SPECS/          设定库
+     -- OUTLINE/        大纲（卷纲 + 章节细纲）
+     -- STYLE/          写作风格
+     -- templates/      模板文件
+
+  2. 过程文件目录：{process_dir}{"  （同小说目录）" if process_dir == base_path else ""}
+     -- draft/          草稿（AI 生成内容暂存）
+     -- summaries/      章节摘要
+     -- snapshots/      章节设定快照
+     -- proposals/      创作提案
+     -- prompts/        AI 提示词文件
+
+  3. 最终输出目录：{output_dir}{"  （同小说目录）" if output_dir == base_path else ""}
+     -- volume-001/     卷一正文
+     -- export/         导出文件（txt/docx）
+     -- archive/        归档
+
+  配置文件：{base_path / 'story.json'}
 
   下一步：
     python story.py propose    创建创作意图
@@ -613,7 +702,13 @@ def main():
     parser.add_argument('--words', type=int, help='目标字数')
     parser.add_argument('--volumes', type=int, help='卷数')
     parser.add_argument('--logline', help='故事概要')
-    parser.add_argument('--non-interactive', action='store_true', help='非交互模式')
+    parser.add_argument('--chapters-per-volume', type=int, help='每卷章节数（默认30）')
+    parser.add_argument('--world', help='世界观/背景设定')
+    parser.add_argument('--characters', help='角色 JSON，格式：[{"name":"张三","role":"主角","desc":"剑客"}]')
+    parser.add_argument('--volume-titles', help='卷名 JSON，格式：[{"title":"风起","theme":"热血"}]')
+    parser.add_argument('--process-dir', help='过程文件目录（AI 生成的中间 markdown）')
+    parser.add_argument('--output-dir', help='最终输出目录（小说正文、导出文件）')
+    parser.add_argument('--non-interactive', action='store_true', help='非交互模式（Agent 驱动，所有数据从参数读取）')
 
     args = parser.parse_args()
 
@@ -623,6 +718,9 @@ def main():
     # 检查是否已初始化
     config_file = base_path / 'story.json'
     if config_file.exists():
+        if args.non_interactive:
+            print(f"  {c('ERROR: 项目已初始化（发现 story.json），非交互模式无法覆盖', Colors.RED)}")
+            sys.exit(1)
         print(f"  {c('WARNING: 项目已初始化（发现 story.json）', Colors.YELLOW)}")
         response = input(f"  重新初始化将覆盖配置，是否继续？ [y/N]: ").strip().lower()
         if response != 'y':
@@ -638,13 +736,51 @@ def main():
             'genre': args.genre or '玄幻',
             'target_words': args.words or 500000,
             'volumes': args.volumes or 3,
-            'chapters_per_volume': 30,
+            'chapters_per_volume': args.chapters_per_volume or 30,
             'logline': args.logline or ''
         }
         logline = args.logline or ''
+        world = args.world or ''
+
+        # 解析 characters JSON
         characters = []
-        world = ''
-        volume_titles = None  # 将在 create_config 中生成默认值
+        if args.characters:
+            try:
+                characters = json.loads(args.characters)
+                if not isinstance(characters, list):
+                    print(f"  {c('ERROR: --characters 必须是 JSON 数组', Colors.RED)}")
+                    sys.exit(1)
+                # 标准化字段名：desc → description
+                for char in characters:
+                    if 'desc' in char and 'description' not in char:
+                        char['description'] = char.pop('desc')
+                    # 确保必要字段
+                    char.setdefault('role', '')
+                    char.setdefault('description', '')
+            except json.JSONDecodeError as e:
+                print(f"  {c(f'ERROR: --characters JSON 解析失败: {e}', Colors.RED)}")
+                sys.exit(1)
+
+        # 解析 volume-titles JSON
+        volume_titles = None
+        if args.volume_titles:
+            try:
+                volume_titles = json.loads(args.volume_titles)
+                if not isinstance(volume_titles, list):
+                    print(f"  {c('ERROR: --volume-titles 必须是 JSON 数组', Colors.RED)}")
+                    sys.exit(1)
+                # 标准化：确保每项有 num 字段
+                for i, vt in enumerate(volume_titles):
+                    vt.setdefault('num', i + 1)
+                    vt.setdefault('title', f"卷{i + 1}")
+                    vt.setdefault('theme', '')
+            except json.JSONDecodeError as e:
+                print(f"  {c(f'ERROR: --volume-titles JSON 解析失败: {e}', Colors.RED)}")
+                sys.exit(1)
+
+        # 非交互模式：从 CLI 参数获取目录
+        process_dir = Path(args.process_dir).resolve() if args.process_dir else base_path / "process"
+        output_dir = Path(args.output_dir).resolve() if args.output_dir else base_path / "output"
     else:
         info = collect_basic_info()
         logline = collect_story_concept()
@@ -653,8 +789,14 @@ def main():
         world = collect_world()
         volume_titles = collect_volume_titles(info['volumes'])
 
-    create_directory_structure(base_path, info['volumes'])
-    create_config(base_path, info, logline, world, characters, volume_titles)
+        # 交互模式：收集三个目录
+        dirs = collect_project_dirs(base_path)
+        base_path = dirs['project_root']
+        process_dir = dirs['process_dir']
+        output_dir = dirs['output_dir']
+
+    create_directory_structure(base_path, process_dir, output_dir, info['volumes'])
+    create_config(base_path, info, logline, world, characters, volume_titles, process_dir, output_dir)
     create_story_concept(base_path, logline, world)
     create_character_files(base_path, characters)
     create_outline_files(base_path, info, volume_titles)
@@ -662,7 +804,7 @@ def main():
     create_readme(base_path, info)
     create_gitignore(base_path)
 
-    show_success(base_path, info)
+    show_success(base_path, info, process_dir, output_dir)
 
 if __name__ == '__main__':
     main()

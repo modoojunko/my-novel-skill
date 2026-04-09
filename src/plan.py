@@ -236,7 +236,9 @@ def generate_volume_outline_prompt(root: Path, volume_num: int, main_story: str,
     return prompt
 
 
-def generate_volume_outline(root: Path, volume_num: int, interactive: bool = False) -> None:
+def generate_volume_outline(root: Path, volume_num: int, interactive: bool = False,
+                            conflict: str = None, arc: str = None,
+                            events: str = None, tone: str = None) -> None:
     """生成卷纲草稿"""
     config = load_config(root)
     volume_dir = get_volume_dir(root, volume_num)
@@ -250,8 +252,10 @@ def generate_volume_outline(root: Path, volume_num: int, interactive: bool = Fal
         print(f"  使用 --revise 进入讨论模式，或 --confirm 确认定稿")
         return
 
-    if interactive:
-        main_story = run_interactive_main_story(config)
+    if interactive or conflict is not None:
+        # 交互模式或非交互参数化模式
+        main_story = run_interactive_main_story(config, conflict=conflict, arc=arc,
+                                                 events=events, tone=tone)
     else:
         main_story = read_main_story(root)
         if not main_story:
@@ -283,47 +287,66 @@ def generate_volume_outline(root: Path, volume_num: int, interactive: bool = Fal
     print(f"\n  ✓ 卷 {volume_num} stage 已更新为: draft")
 
 
-def run_interactive_main_story(config: Dict) -> str:
-    """交互式收集主线信息"""
-    print("\n" + "="*60)
-    print("  交互式主线信息收集")
-    print("="*60)
-    print("\n  让我们一步步梳理你的故事主线...\n")
+def run_interactive_main_story(config: Dict, conflict: str = None, arc: str = None,
+                               events: str = None, tone: str = None) -> str:
+    """收集主线信息（交互式或参数化）
 
-    meta = config.get("meta", {})
+    Args:
+        config: 项目配置
+        conflict: 核心冲突（有值时跳过交互）
+        arc: 主角成长弧线
+        events: 核心事件（逗号分隔）
+        tone: 情感基调
+    """
+    # 非交互模式：使用参数
+    if conflict is not None:
+        core_conflict = conflict or "未填写"
+        arc = arc or "未填写"
+        if events:
+            event_list = [e.strip() for e in events.split(',') if e.strip()]
+            events_str = "\n".join([f"{i+1}. {e}" for i, e in enumerate(event_list)]) if event_list else "未填写"
+        else:
+            events_str = "未填写"
+        tone = tone or "混合"
+    else:
+        # 交互模式
+        print("\n" + "="*60)
+        print("  交互式主线信息收集")
+        print("="*60)
+        print("\n  让我们一步步梳理你的故事主线...\n")
 
-    print("-"*60)
+        print("-"*60)
 
-    # 核心冲突
-    print("\n  1. 核心冲突是什么？")
-    print("     （主角面临的主要矛盾或困境）")
-    core_conflict = input("  > ").strip()
-    if not core_conflict:
-        core_conflict = "未填写"
+        # 核心冲突
+        print("\n  1. 核心冲突是什么？")
+        print("     （主角面临的主要矛盾或困境）")
+        core_conflict = input("  > ").strip()
+        if not core_conflict:
+            core_conflict = "未填写"
 
-    # 主角弧线
-    print("\n  2. 主角的成长弧线？")
-    print("     （主角从...到...的转变）")
-    arc = input("  > ").strip()
-    if not arc:
-        arc = "未填写"
+        # 主角弧线
+        print("\n  2. 主角的成长弧线？")
+        print("     （主角从...到...的转变）")
+        arc = input("  > ").strip()
+        if not arc:
+            arc = "未填写"
 
-    # 核心事件
-    print("\n  3. 最重要的 2-3 个事件？")
-    print("     （Enter 跳过）")
-    events = []
-    for i in range(1, 4):
-        event = input(f"    事件{i}: ").strip()
-        if event:
-            events.append(event)
-    events_str = "\n".join([f"{i+1}. {e}" for i, e in enumerate(events)]) if events else "未填写"
+        # 核心事件
+        print("\n  3. 最重要的 2-3 个事件？")
+        print("     （Enter 跳过）")
+        event_list = []
+        for i in range(1, 4):
+            event = input(f"    事件{i}: ").strip()
+            if event:
+                event_list.append(event)
+        events_str = "\n".join([f"{i+1}. {e}" for i, e in enumerate(event_list)]) if event_list else "未填写"
 
-    # 情感基调
-    print("\n  4. 故事的情感基调？")
-    print("     （虐/甜/热血/悬疑/轻松...）")
-    tone = input("  > ").strip() or "混合"
+        # 情感基调
+        print("\n  4. 故事的情感基调？")
+        print("     （虐/甜/热血/悬疑/轻松...）")
+        tone = input("  > ").strip() or "混合"
 
-    print("\n" + "-"*60)
+        print("\n" + "-"*60)
 
     # 组装主线
     main_story = f"""## 核心冲突
@@ -622,6 +645,12 @@ def main():
                         help="确认定稿")
     parser.add_argument("--status", "-s", action="store_true",
                         help="查看流水线状态")
+    parser.add_argument("--non-interactive", action="store_true",
+                        help="非交互模式（Agent 驱动，主线信息从参数读取）")
+    parser.add_argument("--conflict", help="核心冲突")
+    parser.add_argument("--arc", help="主角成长弧线")
+    parser.add_argument("--events", help="核心事件（逗号分隔）")
+    parser.add_argument("--tone", help="情感基调")
 
     args = parser.parse_args()
 
@@ -642,7 +671,16 @@ def main():
         elif args.revise:
             revise_volume_outline(root, args.volume)
         else:
-            generate_volume_outline(root, args.volume, args.interactive)
+            # 非交互模式：用 --conflict/--arc/--events/--tone 参数
+            # 交互模式：用 --interactive 进入问答
+            # 默认：从文件读取主线
+            if args.non_interactive:
+                # 非交互模式至少需要 --conflict 或主线文件
+                generate_volume_outline(root, args.volume, interactive=False,
+                                        conflict=args.conflict, arc=args.arc,
+                                        events=args.events, tone=args.tone)
+            else:
+                generate_volume_outline(root, args.volume, args.interactive)
         return
 
     # 章节拆分

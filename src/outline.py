@@ -17,6 +17,7 @@ import json
 import re
 from pathlib import Path
 from datetime import datetime
+from .paths import find_project_root, load_config, save_config, load_project_paths
 
 class Colors:
     HEADER = '\033[95m'
@@ -344,46 +345,13 @@ def confirm_chapter_outline(root: Path, chapter_num: int) -> None:
     print(f"    story:outline --revise {chapter_num}  →  继续修改细纲")
 
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists() or (current / 'story.yml').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    if not config_path.exists():
-        config_path = root / 'story.yml'
-    
-    if config_path.suffix == '.json':
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    else:
-        import yaml
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
-
-def save_config(root, config):
-    """保存配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
-
 def ensure_outline_dirs(root, volumes):
     """确保大纲目录存在"""
     outline_dir = root / 'OUTLINE'
     outline_dir.mkdir(exist_ok=True)
 
     for i in range(1, volumes + 1):
-        vol_dir = outline_dir / f'volume-{i}'
+        vol_dir = outline_dir / f'volume-{i:03d}'
         vol_dir.mkdir(exist_ok=True)
 
 def edit_meta_outline(root, config):
@@ -412,7 +380,7 @@ def edit_meta_outline(root, config):
 
 def edit_volume_outline(root, config, volume_num):
     """编辑分卷大纲"""
-    vol_path = root / 'OUTLINE' / f'volume-{volume_num}.md'
+    vol_path = root / 'OUTLINE' / f'volume-{volume_num:03d}.md'
 
     vol_path.parent.mkdir(exist_ok=True)
 
@@ -469,7 +437,7 @@ def edit_chapter_outline(root, config, chapter_num):
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
-    vol_dir = root / 'OUTLINE' / f'volume-{volume_num}'
+    vol_dir = root / 'OUTLINE' / f'volume-{volume_num:03d}'
     vol_dir.mkdir(exist_ok=True)
 
     chapter_path = vol_dir / f'chapter-{chapter_num:03d}.md'
@@ -536,7 +504,7 @@ def init_volume_chapters(root, config, volume_num):
     skipped = []
 
     for ch_num in range(start_chapter, end_chapter + 1):
-        vol_dir = root / 'OUTLINE' / f'volume-{volume_num}'
+        vol_dir = root / 'OUTLINE' / f'volume-{volume_num:03d}'
         vol_dir.mkdir(exist_ok=True)
         chapter_path = vol_dir / f'chapter-{ch_num:03d}.md'
 
@@ -594,11 +562,11 @@ def show_outline_tree(root, config):
     print("  |-- meta.md")
 
     for v in range(1, volumes + 1):
-        vol_path = root / 'OUTLINE' / f'volume-{v}.md'
+        vol_path = root / 'OUTLINE' / f'volume-{v:03d}.md'
         vol_status = '[OK]' if vol_path.exists() else '[ ]'
-        print(f"  |-- volume-{v}.md {vol_status}")
+        print(f"  |-- volume-{v:03d}.md {vol_status}")
 
-        vol_dir = root / 'OUTLINE' / f'volume-{v}'
+        vol_dir = root / 'OUTLINE' / f'volume-{v:03d}'
         if vol_dir.exists():
             chapters = list(vol_dir.glob('chapter-*.md'))
             for ch in sorted(chapters)[:5]:
@@ -623,7 +591,7 @@ def expand_scene_outline(root, config, chapter_num, scene_num=None):
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
-    chapter_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    chapter_path = root / 'OUTLINE' / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
 
     if not chapter_path.exists():
         return None, f"章节大纲不存在: {chapter_path.name}"
@@ -716,7 +684,7 @@ def swap_chapter_outlines(root, config, chapter_a: int, chapter_b: int):
 
     def get_paths(chapter_num):
         vol_num = ((chapter_num - 1) // chapters_per) + 1
-        outline_dir = root / 'OUTLINE' / f'volume-{vol_num}'
+        outline_dir = root / 'OUTLINE' / f'volume-{vol_num:03d}'
         return vol_num, outline_dir / f'chapter-{chapter_num:03d}.md'
 
     # 获取两个章节的路径
@@ -826,6 +794,7 @@ def main():
         sys.exit(1)
 
     config = load_config(root)
+    paths = load_project_paths(root)
 
     volumes = config.get('structure', {}).get('volumes', 1)
     ensure_outline_dirs(root, volumes)
@@ -846,7 +815,7 @@ def main():
         if created:
             print(f"  [OK] 已创建 {len(created)} 个章节大纲：")
             for ch_num in created[:10]:
-                print(f"       + OUTLINE/volume-{vol_num}/chapter-{ch_num:03d}.md")
+                print(f"       + OUTLINE/volume-{vol_num:03d}/chapter-{ch_num:03d}.md")
             if len(created) > 10:
                 print(f"       ... 还有 {len(created) - 10} 个")
         if skipped:

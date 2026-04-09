@@ -22,6 +22,7 @@ import json
 import argparse
 from pathlib import Path
 from datetime import datetime
+from .paths import find_project_root, load_config, save_config, load_project_paths
 
 
 class Colors:
@@ -40,36 +41,10 @@ def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
 
+
 # ============================================================================
 # 工具函数
 # ============================================================================
-
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
-
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-
-def save_config(root, config):
-    """保存配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
 
 
 # ============================================================================
@@ -208,13 +183,12 @@ word_count: {word_count}
 """
 
 
-def generate_snapshot_template(chapter_num: int, volume_num: int, root: Path) -> str:
-    """生成快照模板（供 AI 或人工填写）
-    
-    注意：框架只负责生成模板，实际内容由 Agent（AI）根据章节内容填充。
-    """
+def generate_snapshot_template(chapter_num: int, volume_num: int, root: Path, paths: dict = None) -> str:
+    """生成快照模板（供 AI 或人工填写）"""
+    if paths is None:
+        paths = load_project_paths(root)
     # 尝试读取章节正文获取字数
-    content_path = root / "CONTENT" / f"volume-{volume_num}" / f"chapter-{chapter_num:03d}.md"
+    content_path = paths['output_dir'] / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
     word_count = 0
     if content_path.exists():
         content = content_path.read_text(encoding="utf-8")
@@ -226,7 +200,7 @@ def generate_snapshot_template(chapter_num: int, volume_num: int, root: Path) ->
     prev_scenes = _extract_section(prev_snapshot, "## 已用场景模式") if prev_snapshot else "（首章，暂无已用场景）"
 
     # 读取人物列表
-    chars_dir = root / "SPECS" / "characters"
+    chars_dir = paths['characters']
     character_rows = ""
     if chars_dir.exists():
         for char_file in sorted(chars_dir.glob("*.md")):
@@ -250,10 +224,12 @@ def generate_snapshot_template(chapter_num: int, volume_num: int, root: Path) ->
     )
 
 
-def generate_snapshot_prompt(chapter_num: int, volume_num: int, root: Path) -> str:
+def generate_snapshot_prompt(chapter_num: int, volume_num: int, root: Path, paths: dict = None) -> str:
     """生成让 AI 填充快照的 Prompt"""
+    if paths is None:
+        paths = load_project_paths(root)
     # 读取章节正文
-    content_path = root / "CONTENT" / f"volume-{volume_num}" / f"chapter-{chapter_num:03d}.md"
+    content_path = paths['output_dir'] / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
     chapter_content = ""
     if content_path.exists():
         chapter_content = content_path.read_text(encoding="utf-8")
@@ -268,7 +244,7 @@ def generate_snapshot_prompt(chapter_num: int, volume_num: int, root: Path) -> s
     prev_snapshot = read_chapter_snapshot(root, chapter_num - 1, volume_num) if chapter_num > 1 else ""
 
     # 读取人物设定
-    chars_dir = root / "SPECS" / "characters"
+    chars_dir = paths['characters']
     characters = ""
     if chars_dir.exists():
         parts = []
@@ -369,8 +345,10 @@ def _extract_section(text: str, section_header: str) -> str:
 # 快照操作
 # ============================================================================
 
-def create_snapshot(root: Path, chapter_num: int, volume_num: int) -> None:
+def create_snapshot(root: Path, chapter_num: int, volume_num: int, paths: dict = None) -> None:
     """创建章节设定快照"""
+    if paths is None:
+        paths = load_project_paths(root)
     snapshot_path = get_snapshot_path(root, chapter_num, volume_num)
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -380,10 +358,10 @@ def create_snapshot(root: Path, chapter_num: int, volume_num: int) -> None:
         return
 
     # 生成 Prompt 让 AI 填充
-    prompt = generate_snapshot_prompt(chapter_num, volume_num, root)
+    prompt = generate_snapshot_prompt(chapter_num, volume_num, root, paths=paths)
 
     # 同时生成模板保存
-    template = generate_snapshot_template(chapter_num, volume_num, root)
+    template = generate_snapshot_template(chapter_num, volume_num, root, paths=paths)
     snapshot_path.write_text(template, encoding="utf-8")
 
     print(f"\n{'='*60}")
@@ -502,6 +480,7 @@ def main():
         sys.exit(1)
 
     config = load_config(root)
+    paths = load_project_paths(root)
     chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
 
     # 列出所有快照
@@ -519,7 +498,7 @@ def main():
 
     # 仅显示 Prompt
     if args.prompt:
-        prompt = generate_snapshot_prompt(chapter_num, volume_num, root)
+        prompt = generate_snapshot_prompt(chapter_num, volume_num, root, paths=paths)
         print(prompt)
         return
 
@@ -529,7 +508,7 @@ def main():
         return
 
     # 创建快照
-    create_snapshot(root, chapter_num, volume_num)
+    create_snapshot(root, chapter_num, volume_num, paths=paths)
 
 
 if __name__ == '__main__':

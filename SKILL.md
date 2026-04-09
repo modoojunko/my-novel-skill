@@ -134,16 +134,16 @@ flowchart LR
 
 | 命令 | 功能 | 典型参数 |
 |------|------|---------|
-| `story:init` | 初始化小说项目 | `[--non-interactive]` |
-| `story:propose` | 创建创作意图 | `[目标] [标题]` |
-| `story:plan` | 规划流水线 | `[--volume N] [--chapters N] [--interactive] [--revise] [--confirm]` |
-| `story:define` | 设定库管理 | `[character/world] [名称] [--list/--view/--edit/--delete]` |
+| `story:init` | 初始化小说项目 | `[--non-interactive] [--chapters-per-volume N] [--world TEXT] [--characters JSON] [--volume-titles JSON]` |
+| `story:propose` | 创建创作意图 | `[目标] [标题] [--non-interactive]` |
+| `story:plan` | 规划流水线 | `[--volume N] [--chapters N] [--interactive] [--revise] [--confirm] [--non-interactive] [--conflict TEXT] [--arc TEXT] [--events TEXT] [--tone TEXT]` |
+| `story:define` | 设定库管理 | `[character/world] [名称] [--list/--view/--edit/--delete] [--non-interactive] [--force] [--cognition JSON] [--category TEXT]` |
 | `story:volume` | 卷管理 | `[卷号] [--init] [--init-all] [--list]` |
 | `story:outline` | 编辑大纲 | `[target] [--list] [--draft N] [--revise] [--confirm] [--all] [--volume N]` |
 | `story:write` | 写作模式 | `[章节号] [--draft] [--revise] [--confirm] [--show] [--prompt]` |
 | `story:review` | 人机差异对比 | `[章节号] [--ai FILE] [--stat] [--diff]` |
 | `story:learn` | 风格学习引擎 | `[章节号] [--force]` |
-| `story:style` | 风格档案管理 | `[--prompts] [--full] [--reset]` |
+| `story:style` | 风格档案管理 | `[--prompts] [--full] [--reset] [--force]` |
 | `story:stats` | 学习进度+字数统计 | `[--words] [--learning] [--trend] [--export FILE]` |
 | `story:update-specs` | 写作后更新设定 | `[章节] [--auto] [--view] [-v 卷号]` |
 | `story:recall` | 章节回顾 | `[章节/范围] [--recent N] [--full] [--snapshot]` |
@@ -180,7 +180,10 @@ flowchart LR
 
 ```bash
 python {STORY_DIR}/story.py init [路径] [--non-interactive] \
-  [--title "书名"] [--genre "类型"] [--words 500000] [--volumes 3] [--logline "概要"]
+  [--title "书名"] [--genre "类型"] [--words 500000] [--volumes 3] [--logline "概要"] \
+  [--chapters-per-volume 30] [--world "世界观"] \
+  [--characters '[{"name":"张三","role":"主角","desc":"剑客"}]'] \
+  [--volume-titles '[{"title":"风起","theme":"热血"}]']
 ```
 
 脚本会自动创建：
@@ -195,10 +198,20 @@ python {STORY_DIR}/story.py init [路径] [--non-interactive] \
       story-concept.md    # 故事概念文件
   OUTLINE/
     meta.md               # 总大纲
-    volume-N.md           # 各卷大纲
+    volume-001.md           # 各卷大纲
+    volume-001/             # 各卷章节细纲、快照、摘要
+      chapter-001.md
+      snapshots/
+      summaries/
   CONTENT/
-    volume-N/             # 各卷正文
+    volume-001/             # 各卷正文
+      chapter-001.md
     draft/                # 草稿
+    summaries/             # 章节摘要
+  STYLE/
+    prompts/              # 风格提示词
+    history/              # 风格历史
+  EXPORT/                  # 导出文件
   ARCHIVE/                # 归档
   templates/              # 模板（chapter.md / character.md / scene.md / outline.md）
   README.md
@@ -225,6 +238,10 @@ python {STORY_DIR}/story.py init [路径] [--non-interactive] \
     "volume_titles": [
       { "num": 1, "title": "卷名", "theme": "主题" }
     ]
+  },
+  "paths": {
+    "process_dir": "过程文件目录（可选，默认项目根）",
+    "output_dir": "最终输出目录（可选，默认项目根/CONTENT）"
   },
   "progress": {
     "current_volume": 1,
@@ -259,7 +276,7 @@ python {STORY_DIR}/story.py init [路径] [--non-interactive] \
 
 3. 提案文件保存到：
    - 概念：`SPECS/meta/proposals/{日期}-story-concept-proposal.md`
-   - 卷：`OUTLINE/volume-N/proposals/{日期}-volume-N-proposal.md`
+   - 卷：`OUTLINE/volume-001/proposals/{日期}-volume-001-proposal.md`
    - 章节：`OUTLINE/proposals/{日期}-chapter-N-proposal.md`
 
 4. 提案内容应包含：
@@ -490,7 +507,7 @@ modified: 2026-04-08
 |------|------|------|
 | 查看所有卷 | `--list` 或无参数 | 表格展示所有卷的大纲/章纲/正文状态 |
 | 初始化所有卷 | `--init-all` | 批量创建卷目录和大纲文件，跳过已存在的 |
-| 初始化指定卷 | `N --init` | 创建 CONTENT/volume-N/ 和 OUTLINE/volume-N.md |
+| 初始化指定卷 | `N --init` | 创建 CONTENT/volume-001/ 和 OUTLINE/volume-001.md |
 | 查看指定卷 | `N`（无 --init） | 展示该卷的详细状态（大纲、章纲数、正文数） |
 
 ### CLI 调用
@@ -504,9 +521,10 @@ python {STORY_DIR}/story.py volume 1               # 查看卷1状态
 
 ### 状态列含义
 
-- `[OK]` 大纲：OUTLINE/volume-N.md 是否存在
+- `[OK]` 大纲：OUTLINE/volume-001.md 是否存在
+
 - `N/M` 章纲：已有章节大纲数 / 每卷章节数
-- `[OK]` 正文：CONTENT/volume-N/ 是否存在
+- `[OK]` 正文：CONTENT/volume-001/ 是否存在
 
 ---
 
@@ -525,8 +543,8 @@ python {STORY_DIR}/story.py volume 1               # 查看卷1状态
 | 层级 | 文件 | 内容 |
 |------|------|------|
 | 总纲 | `OUTLINE/meta.md` | 故事概览、卷结构、主题线索、伏笔记录 |
-| 卷纲 | `OUTLINE/volume-N.md` | 本卷主题、卷概述、主要事件、章节安排、高潮、伏笔 |
-| 章纲 | `OUTLINE/volume-N/chapter-NNN.md` | 本章目标、POV、场景列表、情节点、关键对话、伏笔、预估字数 |
+| 卷纲 | `OUTLINE/volume-001.md` | 本卷主题、卷概述、主要事件、章节安排、高潮、伏笔 |
+| 章纲 | `OUTLINE/volume-001/chapter-NNN.md` | 本章目标、POV、场景列表、情节点、关键对话、伏笔、预估字数 |
 
 ### 执行步骤
 
@@ -677,15 +695,15 @@ python {STORY_DIR}/story.py write [章节号]
 ```
 
 脚本会：
-1. 创建 `CONTENT/volume-N/chapter-NNN.md`（如果不存在）
-2. 创建 `CONTENT/volume-N/chapter-NNN.tasks.md`（写作任务清单）
+1. 创建 `CONTENT/volume-001/chapter-NNN.md`（如果不存在）
+2. 创建 `CONTENT/volume-001/chapter-NNN.tasks.md`（写作任务清单）
 3. 更新 story.json 的 `progress.current_chapter` 和 `progress.written_chapters`
 
 #### 第二段：展示写作上下文 [REASONING]
 
 写作前，AI 应主动收集并展示以下信息：
 
-1. **章节大纲**：读取 `OUTLINE/volume-N/chapter-NNN.md`，展示场景列表和本章目标
+1. **章节大纲**：读取 `OUTLINE/volume-001/chapter-NNN.md`，展示场景列表和本章目标
 2. **上章回顾**（如果有）：读取上一章正文的最后 500 字，确保衔接
 3. **人物设定**：读取本章涉及角色的 `SPECS/characters/xxx.md`
 4. **伏笔检查**：检查前序大纲中的"伏笔记录"，确认本章是否需要回收/埋设
@@ -979,8 +997,8 @@ python {STORY_DIR}/story.py style --prompts
 # 查看完整风格指南
 python {STORY_DIR}/story.py style --full
 
-# 重置风格数据
-python {STORY_DIR}/story.py style --reset
+# 重置风格数据（--force 跳过确认）
+python {STORY_DIR}/story.py style --reset [--force]
 ```
 
 ### 风格档案输出
@@ -1214,7 +1232,7 @@ python {STORY_DIR}/story.py recall 5 --snapshot
 
 摘要文件由 `story:update-specs` 命令生成，保存到：
 ```
-OUTLINE/volume-N/summaries/chapter-005-summary.md
+OUTLINE/volume-001/summaries/chapter-005-summary.md
 ```
 
 ### 输出示例
@@ -1296,7 +1314,7 @@ python {STORY_DIR}/story.py snapshot 5 --prompt
 ### 快照存储
 
 ```
-OUTLINE/volume-N/snapshots/
+OUTLINE/volume-001/snapshots/
   chapter-001-snapshot.md        # 第1章快照
   chapter-002-snapshot.md        # 第2章快照
   chapter-003-snapshot-prompt.md # 第3章 AI 填充 Prompt
@@ -1372,7 +1390,7 @@ python {STORY_DIR}/story.py export 1-5 -o my-novel-ch1-5.docx
 ```
 EXPORT/
   《书名》-ch1-10.txt
-  《书名》-volume-1.docx
+  《书名》-volume-001.docx
 ```
 
 ### 格式说明
@@ -1631,7 +1649,7 @@ python {STORY_DIR}/story.py status [--json]
 | B 类 | 纯内容问题 | 人物单薄/冲突缺失/细节不足 | 补充内容 |
 | C 类 | AI 味问题 | "像某种"/排比三连/情绪直白宣判 | 调整文风 |
 
-**执行方式**：Agent 直接读取待诊断的章节文件（`CONTENT/volume-N/chapter-NNN.md`），参照 `src/diagnose_rules.md` 中的 A/B/C 检查清单逐项分析，按 `src/diagnose_prompts.md` 的框架输出诊断报告。
+**执行方式**：Agent 直接读取待诊断的章节文件（`CONTENT/volume-001/chapter-NNN.md`），参照 `src/diagnose_rules.md` 中的 A/B/C 检查清单逐项分析，按 `src/diagnose_prompts.md` 的框架输出诊断报告。
 
 **诊断报告格式**：
 
@@ -1695,7 +1713,7 @@ python {STORY_DIR}/story.py status [--json]
 
 ```
 {项目根}/
-  story.json                        # 核心配置（JSON）
+  story.json                        # 核心配置（JSON，含 paths 三目录配置）
   SPECS/
     characters/{角色名}.md           # 人物设定
     world/*.md                      # 世界观
@@ -1703,38 +1721,71 @@ python {STORY_DIR}/story.py status [--json]
       story-concept.md              # 故事概念
   OUTLINE/
     meta.md                         # 总大纲
-    volume-N.md                     # 卷大纲（每卷一个）
-    volume-N/
+    volume-001.md                     # 卷大纲（每卷一个）
+    volume-001/
       chapter-NNN.md                # 章节大纲（每章一个）
-      snapshots/                    # [NEW] 章节设定快照
+      snapshots/                    # 章节设定快照
         chapter-NNN-snapshot.md     # 设定快照
         chapter-NNN-snapshot-prompt.md  # AI 填充 Prompt
-  CONTENT/
-    volume-N/
-      chapter-NNN.md                # 正文
-      chapter-NNN.tasks.md          # 任务清单
-    draft/                          # 草稿（AI 生成内容暂存）
-  ARCHIVE/
-    {日期}-chapter-NNN/
-      final.md                      # 定稿
-      outline.md                    # 归档时的大纲
-      tasks.md                      # 归档时的任务
-      delta-spec.md                 # 变更记录
-      .meta.json                    # 归档元数据
-  STYLE/                            # [NEW] 风格学习数据
-    profile.json                    # 用户风格档案
-    prompts/                       # [NEW] 可复用的 prompt 片段
-      vocabulary.md                 # 词汇偏好
-      sentence.md                  # 句式偏好
-      pacing.md                    # 节奏偏好
-      full_guide.md               # 完整风格指南
-    history/                       # 修改历史记录
-      chapter-NNN/
-        ai_raw.md                  # AI 原始生成
-        human_final.md             # 人的最终版本
-        analysis.json              # 差异分析结果
-  templates/                        # 写作模板
+      summaries/                    # 章节摘要
+        chapter-NNN-summary.md      # 章节摘要
+
+# === 以下三个目录可通过 story.json paths 字段自定义位置 ===
+
+{output_dir}/                       # 最终输出目录（默认：项目根/CONTENT）
+  volume-001/
+    chapter-NNN.md                  # 正文
+    chapter-NNN.tasks.md            # 任务清单
+
+{process_dir}/                      # 过程文件目录（默认：项目根）
+  draft/                            # 草稿（AI 生成内容暂存）
+  summaries/                        # 章节摘要
+  snapshots/                        # 备用快照目录
+  proposals/                        # 提案目录
+  prompts/                          # 提示词暂存
+
+{output_dir}/export/                # 导出文件
+{output_dir}/archive/               # 归档
+  {日期}-chapter-NNN/
+    final.md                        # 定稿
+    outline.md                      # 归档时的大纲
+    tasks.md                        # 归档时的任务
+    delta-spec.md                   # 变更记录
+    .meta.json                      # 归档元数据
+
+STYLE/                              # 风格学习数据（在项目根下）
+  profile.json                      # 用户风格档案
+  prompts/                          # 可复用的 prompt 片段
+    vocabulary.md                   # 词汇偏好
+    sentence.md                     # 句式偏好
+    pacing.md                       # 节奏偏好
+    full_guide.md                   # 完整风格指南
+  history/                          # 修改历史记录
+    chapter-NNN/
+      ai_raw.md                     # AI 原始生成
+      human_final.md                # 人的最终版本
+      analysis.json                 # 差异分析结果
+templates/                          # 写作模板
 ```
+
+### 三目录设计
+
+story.json 中的 `paths` 字段控制三个主目录的位置：
+
+```json
+{
+  "paths": {
+    "process_dir": "过程文件目录路径（相对或绝对）",
+    "output_dir": "最终输出目录路径（相对或绝对）"
+  }
+}
+```
+
+- **project_root**（项目根）：包含 `story.json`、`SPECS/`、`OUTLINE/`、`STYLE/`、`templates/`
+- **process_dir**（过程文件目录）：AI 生成的中间产物，如 `draft/`、`summaries/`、`snapshots/`、`proposals/`、`prompts/`
+- **output_dir**（最终输出目录）：小说正文 `volume-NNN/`、`export/`、`archive/`
+
+**向后兼容**：若 `story.json` 无 `paths` 字段，所有路径回退到项目根目录（旧项目无需修改即可运行）。
 
 ## 边界与防坑
 
@@ -1745,6 +1796,8 @@ python {STORY_DIR}/story.py status [--json]
 **卷号和章节号的计算依赖 `chapters_per_volume`。** 如果中途修改了每卷章节数，已有文件不会自动重新编号。建议在 init 阶段确定好结构，不要频繁调整。
 
 **编码兼容性。** 所有文件使用 UTF-8 编码，输出避免 emoji（用 ASCII 符号替代），兼容 Windows GBK 终端。
+
+**Agent 驱动模式。** 所有含交互输入的命令（init/define/propose/plan/style）均支持 `--non-interactive` 模式：Agent 与用户对话获取信息后，通过完整 CLI 参数调用脚本，脚本不再有 `input()` 阻塞。JSON 参数格式错误时给出清晰提示并退出。
 
 ## 多平台 Skill 目录
 

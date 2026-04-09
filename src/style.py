@@ -15,6 +15,7 @@ import json
 import argparse
 from pathlib import Path
 from datetime import datetime
+from .paths import find_project_root, load_project_paths
 
 
 class Colors:
@@ -33,30 +34,21 @@ def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
 
-
-def ensure_dirs(root):
+def ensure_dirs(root, paths=None):
     """确保风格目录存在"""
-    dirs = [root / 'STYLE', root / 'STYLE' / 'prompts', root / 'STYLE' / 'history']
+    if paths is None:
+        paths = load_project_paths(root)
+    dirs = [paths['style'], paths['style_prompts'], paths['style_history']]
     for d in dirs:
         d.mkdir(parents=True, exist_ok=True)
 
 
-def load_profile(root) -> dict:
+def load_profile(root, paths=None) -> dict:
     """加载风格档案"""
-    profile_path = root / 'STYLE' / 'profile.json'
+    if paths is None:
+        paths = load_project_paths(root)
+    profile_path = paths['style'] / 'profile.json'
     if profile_path.exists():
         with open(profile_path, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -119,22 +111,25 @@ def show_full_guide(prompts_dir: Path):
     print(content)
 
 
-def reset_style(root):
+def reset_style(root, force: bool = False, paths=None):
     """重置风格档案"""
-    print(f"\n{c('[WARN] 即将重置所有风格数据！', Colors.RED)}")
-    confirm = input("  确认删除？[y/N]: ").strip().lower()
-    if confirm != 'y':
-        print("  取消操作")
-        return
+    if paths is None:
+        paths = load_project_paths(root)
+    if not force:
+        print(f"\n{c('[WARN] 即将重置所有风格数据！', Colors.RED)}")
+        confirm = input("  确认删除？[y/N]: ").strip().lower()
+        if confirm != 'y':
+            print("  取消操作")
+            return
 
-    prompts_dir = root / 'STYLE' / 'prompts'
+    prompts_dir = paths['style_prompts']
     if prompts_dir.exists():
         for f in prompts_dir.iterdir():
             if f.is_file():
                 f.unlink()
         print(f"  {c('[OK]', Colors.GREEN)} 已清空 STYLE/prompts/")
 
-    profile_path = root / 'STYLE' / 'profile.json'
+    profile_path = paths['style'] / 'profile.json'
     new_profile = {'created': datetime.now().isoformat(), 'chapters_trained': 0,
                    'avg_modification_rate': 0.0, 'target_modification_rate': 0.15, 'reset_at': datetime.now().isoformat()}
     with open(profile_path, 'w', encoding='utf-8') as f:
@@ -149,6 +144,7 @@ def main():
     parser.add_argument('--prompts', '-p', action='store_true', help='显示 prompt 片段')
     parser.add_argument('--full', '-f', action='store_true', help='显示完整风格指南')
     parser.add_argument('--reset', '-r', action='store_true', help='重置风格数据')
+    parser.add_argument('--force', action='store_true', help='跳过确认提示（重置等操作）')
 
     args = parser.parse_args()
     root = find_project_root()
@@ -156,17 +152,18 @@ def main():
         print(f"  {c('[ERROR] 未找到项目目录', Colors.RED)}")
         sys.exit(1)
 
-    ensure_dirs(root)
-    prompts_dir = root / 'STYLE' / 'prompts'
+    paths = load_project_paths(root)
+    ensure_dirs(root, paths=paths)
+    prompts_dir = paths['style_prompts']
 
     if args.reset:
-        reset_style(root)
+        reset_style(root, force=args.force, paths=paths)
     elif args.full:
         show_full_guide(prompts_dir)
     elif args.prompts:
         show_prompts(prompts_dir)
     else:
-        profile = load_profile(root)
+        profile = load_profile(root, paths=paths)
         show_profile(profile)
         print(c("[TIP] 使用 --prompts 查看 prompt 片段", Colors.DIM))
 

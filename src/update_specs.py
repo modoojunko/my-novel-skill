@@ -19,6 +19,7 @@ import json
 import re
 from pathlib import Path
 from datetime import datetime
+from .paths import find_project_root, load_config, save_config, load_project_paths
 
 
 class Colors:
@@ -37,37 +38,14 @@ def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
 
 
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
 
-
-def save_config(root, config):
-    """保存配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
-
-
-def read_character_pov_state(root: Path, char_name: str) -> dict:
+def read_character_pov_state(root: Path, char_name: str, paths: dict = None) -> dict:
     """读取角色的POV认知状态"""
-    char_file = root / 'SPECS' / 'characters' / f'{char_name}.md'
+    if paths is None:
+        paths = load_project_paths(root)
+    char_file = paths['characters'] / f'{char_name}.md'
     if not char_file.exists():
         return {}
     
@@ -130,10 +108,13 @@ def read_character_pov_state(root: Path, char_name: str) -> dict:
     }
 
 
-def update_character_pov_state(root: Path, char_name: str, new_known_char: dict = None, 
-                               new_known_info: str = None, revealed_item: str = None) -> bool:
+def update_character_pov_state(root: Path, char_name: str, new_known_char: dict = None,
+                               new_known_info: str = None, revealed_item: str = None,
+                               paths: dict = None) -> bool:
     """更新角色设定文件中的当前状态"""
-    char_file = root / 'SPECS' / 'characters' / f'{char_name}.md'
+    if paths is None:
+        paths = load_project_paths(root)
+    char_file = paths['characters'] / f'{char_name}.md'
     if not char_file.exists():
         return False
     
@@ -181,19 +162,12 @@ def update_character_pov_state(root: Path, char_name: str, new_known_char: dict 
     return True
 
 
-def scan_chapter_for_revelations(root: Path, chapter_num: int, volume_num: int) -> dict:
-    """扫描章节内容，检测新揭示的信息
-    
-    返回：
-    {
-        'pov_character': '林夜',  # 本章POV角色
-        'new_known_characters': [{'name': '苏念', 'source': '学生证'}],
-        'new_known_info': ['苏念的手没有温度'],
-        'revealed_pending': ['苏念的名字']
-    }
-    """
-    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
-    outline_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+def scan_chapter_for_revelations(root: Path, chapter_num: int, volume_num: int, paths: dict = None) -> dict:
+    """扫描章节内容，检测新揭示的信息"""
+    if paths is None:
+        paths = load_project_paths(root)
+    chapter_path = paths['output_dir'] / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
+    outline_path = root / 'OUTLINE' / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
     
     if not chapter_path.exists():
         return None
@@ -212,7 +186,7 @@ def scan_chapter_for_revelations(root: Path, chapter_num: int, volume_num: int) 
         return None
     
     # 获取该POV角色的当前状态
-    current_state = read_character_pov_state(root, pov_char)
+    current_state = read_character_pov_state(root, pov_char, paths=paths)
     
     revelations = {
         'pov_character': pov_char,
@@ -255,10 +229,12 @@ def scan_chapter_for_revelations(root: Path, chapter_num: int, volume_num: int) 
     return revelations
 
 
-def generate_chapter_summary(root: Path, chapter_num: int, volume_num: int) -> str:
+def generate_chapter_summary(root: Path, chapter_num: int, volume_num: int, paths: dict = None) -> str:
     """生成本章摘要"""
-    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
-    outline_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    if paths is None:
+        paths = load_project_paths(root)
+    chapter_path = paths['output_dir'] / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
+    outline_path = root / 'OUTLINE' / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
     
     if not chapter_path.exists():
         return ""
@@ -300,11 +276,13 @@ def generate_chapter_summary(root: Path, chapter_num: int, volume_num: int) -> s
     return summary
 
 
-def update_story_json_pov_states(root: Path):
+def update_story_json_pov_states(root: Path, paths: dict = None):
     """更新 story.json 中的 pov_states 快照"""
+    if paths is None:
+        paths = load_project_paths(root)
     config = load_config(root)
-    
-    chars_dir = root / 'SPECS' / 'characters'
+
+    chars_dir = paths['characters']
     if not chars_dir.exists():
         return
     
@@ -313,7 +291,7 @@ def update_story_json_pov_states(root: Path):
     
     for char_file in chars_dir.glob('*.md'):
         char_name = char_file.stem
-        state = read_character_pov_state(root, char_name)
+        state = read_character_pov_state(root, char_name, paths=paths)
         if state:
             config['pov_states'][char_name] = state
     
@@ -344,8 +322,9 @@ def main():
     if not root:
         print(c("[ERROR] 未找到项目目录", Colors.RED))
         sys.exit(1)
-    
+
     config = load_config(root)
+    paths = load_project_paths(root)
     
     if not args.chapter:
         print(c("[ERROR] 请指定章节号，如 story:update-specs 5", Colors.RED))
@@ -363,7 +342,7 @@ def main():
     print()
     
     # 扫描章节
-    revelations = scan_chapter_for_revelations(root, chapter_num, volume_num)
+    revelations = scan_chapter_for_revelations(root, chapter_num, volume_num, paths=paths)
     
     if not revelations:
         print(c("  未检测到新揭示信息，或章节文件不存在", Colors.YELLOW))
@@ -405,16 +384,17 @@ def main():
                     'relationship': '未知关系',
                     'source': char['source'],
                     'chapter': f'第{chapter_num}章'
-                }
+                },
+                paths=paths
             )
             print(f"    ✓ 已添加 {char['name']} 到已知角色列表")
         
         for item in revelations['revealed_pending']:
-            update_character_pov_state(root, pov_char, revealed_item=item)
+            update_character_pov_state(root, pov_char, revealed_item=item, paths=paths)
             print(f"    ✓ 已标记 '{item}' 为已揭示")
         
         # 更新 story.json 快照
-        update_story_json_pov_states(root)
+        update_story_json_pov_states(root, paths=paths)
         print(f"    ✓ 已更新 story.json 中的 pov_states")
         
         print()
@@ -422,8 +402,8 @@ def main():
     
     # 生成摘要
     if args.summary:
-        summary = generate_chapter_summary(root, chapter_num, volume_num)
-        summary_dir = root / 'CONTENT' / 'summaries'
+        summary = generate_chapter_summary(root, chapter_num, volume_num, paths=paths)
+        summary_dir = paths['summaries']
         summary_dir.mkdir(exist_ok=True)
         summary_path = summary_dir / f'chapter-{chapter_num:03d}-summary.md'
         

@@ -21,6 +21,7 @@ import json
 import argparse
 from pathlib import Path
 from datetime import datetime
+from .paths import find_project_root, load_config, save_config, load_project_paths
 from .snapshot import read_recent_snapshots_for_prompt
 
 
@@ -43,33 +44,6 @@ def c(text: str, color: str) -> str:
 # ============================================================================
 # 工具函数
 # ============================================================================
-
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
-
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-
-def save_config(root, config):
-    """保存配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
 
 
 def read_file_safely(path: Path, default: str = "") -> str:
@@ -140,8 +114,10 @@ def update_chapter_stage(chapter_num: int, new_stage: str, root: Path) -> None:
 # Pipeline: 正文写作功能
 # ============================================================================
 
-def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, config: dict) -> str:
+def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, config: dict, paths: dict = None) -> str:
     """生成正文写作的 Prompt（用于 AI 写正文）"""
+    if paths is None:
+        paths = load_project_paths(root)
     meta = config.get("meta", {})
     title = meta.get("title", "未命名小说")
     genre = meta.get("genre", "未知")
@@ -161,7 +137,7 @@ def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, confi
     # 读取上一章结尾
     prev_ending = ""
     if chapter_num > 1:
-        prev_path = root / "CONTENT" / f"volume-{volume_num}" / f"chapter-{chapter_num-1:03d}.md"
+        prev_path = paths['output_dir'] / f"volume-{volume_num:03d}" / f"chapter-{chapter_num-1:03d}.md"
         if prev_path.exists():
             content = prev_path.read_text(encoding="utf-8")
             if len(content) > 500:
@@ -178,7 +154,7 @@ def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, confi
 
     # 读取人物设定
     characters = ""
-    chars_dir = root / "SPECS" / "characters"
+    chars_dir = paths['characters']
     if chars_dir.exists():
         parts = []
         for char_file in sorted(chars_dir.glob("*.md")):
@@ -250,8 +226,10 @@ def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, confi
     return prompt
 
 
-def draft_chapter(root: Path, chapter_num: int) -> None:
+def draft_chapter(root: Path, chapter_num: int, paths: dict = None) -> None:
     """生成章节正文草稿"""
+    if paths is None:
+        paths = load_project_paths(root)
     config = load_config(root)
     chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
@@ -268,7 +246,7 @@ def draft_chapter(root: Path, chapter_num: int) -> None:
     vol_dir = root / "OUTLINE" / f"volume-{volume_num:03d}"
     vol_dir.mkdir(parents=True, exist_ok=True)
 
-    prompt = generate_writing_prompt(root, chapter_num, volume_num, config)
+    prompt = generate_writing_prompt(root, chapter_num, volume_num, config, paths=paths)
 
     print(f"\n{'='*60}")
     print(f"  第 {chapter_num} 章正文写作 Prompt")
@@ -283,7 +261,7 @@ def draft_chapter(root: Path, chapter_num: int) -> None:
     print(f"\n  💡 Prompt 已保存到：{prompt_file}")
     print(f"\n  下一步：")
     print(f"    1. 将此 Prompt 发送给 AI 获取正文草稿")
-    print(f"    2. 将 AI 返回的内容保存到 CONTENT/volume-{volume_num}/chapter-{chapter_num:03d}.md")
+    print(f"    2. 将 AI 返回的内容保存到 CONTENT/volume-{volume_num:03d}/chapter-{chapter_num:03d}.md")
     print(f"    3. 使用 story:write {chapter_num} --revise 进行讨论修改")
     print(f"    4. 确认后使用 story:write {chapter_num} --confirm")
 
@@ -292,13 +270,15 @@ def draft_chapter(root: Path, chapter_num: int) -> None:
     print(f"\n  ✓ 第 {chapter_num} 章 stage 已更新为: writing")
 
 
-def revise_chapter(root: Path, chapter_num: int) -> None:
+def revise_chapter(root: Path, chapter_num: int, paths: dict = None) -> None:
     """讨论模式修改正文"""
+    if paths is None:
+        paths = load_project_paths(root)
     config = load_config(root)
     chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
-    chapter_path = root / "CONTENT" / f"volume-{volume_num}" / f"chapter-{chapter_num:03d}.md"
+    chapter_path = paths['output_dir'] / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
 
     if not chapter_path.exists():
         print(f"\n  错误：第 {chapter_num} 章还没有正文文件")
@@ -317,13 +297,15 @@ def revise_chapter(root: Path, chapter_num: int) -> None:
     print(f"  然后使用 story:write {chapter_num} --confirm 确认定稿")
 
 
-def confirm_chapter(root: Path, chapter_num: int) -> None:
+def confirm_chapter(root: Path, chapter_num: int, paths: dict = None) -> None:
     """确认章节正文定稿"""
+    if paths is None:
+        paths = load_project_paths(root)
     config = load_config(root)
     chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
-    chapter_path = root / "CONTENT" / f"volume-{volume_num}" / f"chapter-{chapter_num:03d}.md"
+    chapter_path = paths['output_dir'] / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
 
     if not chapter_path.exists():
         print(f"\n  错误：第 {chapter_num} 章还没有正文文件")
@@ -355,25 +337,27 @@ def confirm_chapter(root: Path, chapter_num: int) -> None:
 # 上下文读取函数
 # ============================================================================
 
-def get_chapter_path(root, chapter_num, volume_num=None):
+def get_chapter_path(root, chapter_num, volume_num=None, paths=None):
     """获取章节文件路径"""
+    if paths is None:
+        paths = load_project_paths(root)
     chapters_per = 30
     if volume_num is None:
         volume_num = ((chapter_num - 1) // chapters_per) + 1
 
-    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    chapter_path = paths['output_dir'] / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
     return chapter_path, volume_num
 
 
 def read_chapter_outline(root, chapter_num, volume_num):
     """读取章节大纲"""
-    outline_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    outline_path = root / 'OUTLINE' / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
     return read_file_safely(outline_path)
 
 
 def read_volume_outline(root, volume_num):
     """读取卷大纲"""
-    vol_path = root / 'OUTLINE' / f'volume-{volume_num}.md'
+    vol_path = root / 'OUTLINE' / f'volume-{volume_num:03d}.md'
     return read_file_safely(vol_path)
 
 
@@ -417,9 +401,11 @@ def read_previous_chapter_ending(root, chapter_num, volume_num):
     return full_text
 
 
-def read_characters_specs(root):
+def read_characters_specs(root, paths=None):
     """读取人物设定"""
-    chars_dir = root / 'SPECS' / 'characters'
+    if paths is None:
+        paths = load_project_paths(root)
+    chars_dir = paths['characters']
     if not chars_dir.exists():
         return ""
 
@@ -431,16 +417,11 @@ def read_characters_specs(root):
     return '\n'.join(result)
 
 
-def read_character_pov_state(root: Path, char_name: str) -> dict:
-    """读取角色的POV认知状态
-    
-    解析角色设定文件中的"当前状态"章节，提取：
-    - known_characters: 已知角色列表
-    - unknown_characters: 未知角色列表
-    - known_info: 已掌握信息
-    - pending_reveals: 待揭示信息
-    """
-    char_file = root / 'SPECS' / 'characters' / f'{char_name}.md'
+def read_character_pov_state(root: Path, char_name: str, paths: dict = None) -> dict:
+    """读取角色的POV认知状态"""
+    if paths is None:
+        paths = load_project_paths(root)
+    char_file = paths['characters'] / f'{char_name}.md'
     if not char_file.exists():
         return {}
     
@@ -507,11 +488,8 @@ def read_character_pov_state(root: Path, char_name: str) -> dict:
     }
 
 
-def generate_pov_constraint_prompt(root: Path, pov_char: str) -> str:
-    """生成POV视角约束Prompt
-    
-    根据角色的认知状态，生成写作时必须遵守的约束。
-    """
+def generate_pov_constraint_prompt(root: Path, pov_char: str, paths: dict = None) -> str:
+    """生成POV视角约束Prompt"""
     if not pov_char or pov_char == '旁白':
         return """## POV视角约束
 
@@ -520,7 +498,7 @@ def generate_pov_constraint_prompt(root: Path, pov_char: str) -> str:
 **注意**：即使是全知视角，也建议保持客观描述，不要直接揭示角色内心想法，而是通过动作、神态、对话来表现。
 """
     
-    state = read_character_pov_state(root, pov_char)
+    state = read_character_pov_state(root, pov_char, paths=paths)
     if not state:
         return f"""## POV视角约束
 
@@ -579,18 +557,11 @@ def generate_pov_constraint_prompt(root: Path, pov_char: str) -> str:
     return '\n'.join(lines)
 
 
-def read_character_cognition(root: Path, char_name: str) -> dict:
-    """读取角色的六层认知
-    
-    解析角色设定文件中的"六层认知"章节，提取：
-    - worldview: 我的世界观
-    - self_definition: 我对自己定义
-    - values: 我的价值观
-    - ability: 我的能力
-    - skill: 我的技能
-    - environment: 我的环境
-    """
-    char_file = root / 'SPECS' / 'characters' / f'{char_name}.md'
+def read_character_cognition(root: Path, char_name: str, paths: dict = None) -> dict:
+    """读取角色的六层认知"""
+    if paths is None:
+        paths = load_project_paths(root)
+    char_file = paths['characters'] / f'{char_name}.md'
     if not char_file.exists():
         return {}
     
@@ -656,7 +627,7 @@ def read_character_cognition(root: Path, char_name: str) -> dict:
     return cognition
 
 
-def generate_cognition_prompt(root: Path, pov_char: str) -> str:
+def generate_cognition_prompt(root: Path, pov_char: str, paths: dict = None) -> str:
     """生成基于六层认知的角色行为约束 Prompt
     
     世界观 → 影响角色面对事件时的态度和信念
@@ -666,7 +637,7 @@ def generate_cognition_prompt(root: Path, pov_char: str) -> str:
     if not pov_char or pov_char == '旁白':
         return ""
     
-    cognition = read_character_cognition(root, pov_char)
+    cognition = read_character_cognition(root, pov_char, paths=paths)
     if not cognition:
         return ""
     
@@ -723,9 +694,11 @@ def generate_cognition_prompt(root: Path, pov_char: str) -> str:
     return '\n'.join(lines)
 
 
-def read_world_specs(root):
+def read_world_specs(root, paths=None):
     """读取世界观设定"""
-    world_dir = root / 'SPECS' / 'world'
+    if paths is None:
+        paths = load_project_paths(root)
+    world_dir = paths['world']
     if not world_dir.exists():
         return ""
 
@@ -737,9 +710,11 @@ def read_world_specs(root):
     return '\n'.join(result)
 
 
-def read_style_prompts(root):
+def read_style_prompts(root, paths=None):
     """读取风格提示（如果存在）"""
-    style_dir = root / 'STYLE' / 'prompts'
+    if paths is None:
+        paths = load_project_paths(root)
+    style_dir = paths['style_prompts']
     if not style_dir.exists():
         return ""
 
@@ -756,15 +731,19 @@ def read_style_prompts(root):
     return '\n'.join(parts)
 
 
-def read_story_concept(root):
+def read_story_concept(root, paths=None):
     """读取故事概念"""
-    concept_path = root / 'SPECS' / 'meta' / 'story-concept.md'
+    if paths is None:
+        paths = load_project_paths(root)
+    concept_path = paths['meta'] / 'story-concept.md'
     return read_file_safely(concept_path)
 
 
-def read_style_avoid(root):
+def read_style_avoid(root, paths=None):
     """读取风格禁忌（如果存在）"""
-    avoid_path = root / 'STYLE' / 'avoid.md'
+    if paths is None:
+        paths = load_project_paths(root)
+    avoid_path = paths['style'] / 'avoid.md'
     if avoid_path.exists():
         content = avoid_path.read_text(encoding='utf-8')
         return content.split('## 避免')[1] if '## 避免' in content else content
@@ -775,8 +754,10 @@ def read_style_avoid(root):
 # Agent Prompt 生成
 # ============================================================================
 
-def generate_agent_prompt(root, config, chapter_num, volume_num):
+def generate_agent_prompt(root, config, chapter_num, volume_num, paths=None):
     """生成 Agent 写作 Prompt"""
+    if paths is None:
+        paths = load_project_paths(root)
 
     # 获取卷信息
     volume_titles = config.get('structure', {}).get('volume_titles', [])
@@ -789,8 +770,8 @@ def generate_agent_prompt(root, config, chapter_num, volume_num):
             break
 
     # 获取风格指南
-    style_prompts = read_style_prompts(root)
-    style_avoid = read_style_avoid(root)
+    style_prompts = read_style_prompts(root, paths=paths)
+    style_avoid = read_style_avoid(root, paths=paths)
 
     # 构建 Prompt
     prompt_parts = []
@@ -841,14 +822,14 @@ def generate_agent_prompt(root, config, chapter_num, volume_num):
             prompt_parts.append("")
 
     # 4. 人物设定
-    characters = read_characters_specs(root)
+    characters = read_characters_specs(root, paths=paths)
     if characters:
         prompt_parts.append("## 人物设定\n")
         prompt_parts.append(characters.strip())
         prompt_parts.append("")
 
     # 5. 世界观约束
-    world = read_world_specs(root)
+    world = read_world_specs(root, paths=paths)
     if world:
         prompt_parts.append("## 世界观约束\n")
         prompt_parts.append(world.strip())
@@ -887,13 +868,13 @@ def generate_agent_prompt(root, config, chapter_num, volume_num):
         if pov_match:
             pov_char = pov_match.group(1).strip()
     
-    pov_constraint = generate_pov_constraint_prompt(root, pov_char or "旁白")
+    pov_constraint = generate_pov_constraint_prompt(root, pov_char or "旁白", paths=paths)
     if pov_constraint:
         prompt_parts.append(pov_constraint)
         prompt_parts.append("")
 
     # 9. 角色认知驱动（从六层认知中提取）
-    cognition_prompt = generate_cognition_prompt(root, pov_char or "")
+    cognition_prompt = generate_cognition_prompt(root, pov_char or "", paths=paths)
     if cognition_prompt:
         prompt_parts.append(cognition_prompt)
 
@@ -929,8 +910,8 @@ def show_full_context(root, config, chapter_num, volume_num):
 
     # 显示引用的文件
     print(c("[INFO] 引用的文件：", Colors.CYAN))
-    print(f"  - 章节大纲：OUTLINE/volume-{volume_num}/chapter-{chapter_num:03d}.md")
-    print(f"  - 卷大纲：OUTLINE/volume-{volume_num}.md")
+    print(f"  - 章节大纲：OUTLINE/volume-{volume_num:03d}/chapter-{chapter_num:03d}.md")
+    print(f"  - 卷大纲：OUTLINE/volume-{volume_num:03d}.md")
     print(f"  - 总大纲：OUTLINE/meta.md")
     print(f"  - 人物设定：SPECS/characters/")
     print(f"  - 世界观：SPECS/world/")
@@ -977,12 +958,14 @@ def create_chapter_tasks(chapter_num):
     return tasks
 
 
-def init_chapter(root, config, chapter_num):
+def init_chapter(root, config, chapter_num, paths=None):
     """初始化章节"""
+    if paths is None:
+        paths = load_project_paths(root)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
-    vol_dir = root / 'CONTENT' / f'volume-{volume_num}'
+    vol_dir = paths['output_dir'] / f'volume-{volume_num:03d}'
     vol_dir.mkdir(parents=True, exist_ok=True)
 
     chapter_path = vol_dir / f'chapter-{chapter_num:03d}.md'
@@ -1088,6 +1071,7 @@ Pipeline 模式：
         sys.exit(1)
 
     config = load_config(root)
+    paths = load_project_paths(root)
 
     # 如果指定了 --ai-import，先处理导入
     if args.ai_import:
@@ -1107,7 +1091,7 @@ Pipeline 模式：
         if not chapter_num:
             print(f"  {c('[ERROR] 请指定章节号，如 story:write 5 --draft', Colors.RED)}")
             sys.exit(1)
-        draft_chapter(root, chapter_num)
+        draft_chapter(root, chapter_num, paths=paths)
         return
 
     # Pipeline: --revise 讨论模式
@@ -1115,7 +1099,7 @@ Pipeline 模式：
         if not chapter_num:
             print(f"  {c('[ERROR] 请指定章节号，如 story:write 5 --revise', Colors.RED)}")
             sys.exit(1)
-        revise_chapter(root, chapter_num)
+        revise_chapter(root, chapter_num, paths=paths)
         return
 
     # Pipeline: --confirm 确认正文
@@ -1123,12 +1107,12 @@ Pipeline 模式：
         if not chapter_num:
             print(f"  {c('[ERROR] 请指定章节号，如 story:write 5 --confirm', Colors.RED)}")
             sys.exit(1)
-        confirm_chapter(root, chapter_num)
+        confirm_chapter(root, chapter_num, paths=paths)
         return
 
     # 如果只是生成 Prompt（不创建文件）
     if args.show or args.prompt:
-        prompt = generate_agent_prompt(root, config, chapter_num, volume_num)
+        prompt = generate_agent_prompt(root, config, chapter_num, volume_num, paths=paths)
 
         if args.prompt:
             show_prompt_only(prompt)
@@ -1140,23 +1124,23 @@ Pipeline 模式：
   1. 将上述 Prompt 发送给 AI Agent
   2. Agent 生成内容后，使用以下命令导入对比：
      python story.py write {chapter_num} --ai-import <文件路径>
-  3. 或直接在 CONTENT/volume-{volume_num}/chapter-{chapter_num:03d}.md 中查看
+  3. 或直接在 CONTENT/volume-{volume_num:03d}/chapter-{chapter_num:03d}.md 中查看
 """)
         return
 
     # 传统写作模式：初始化章节
-    chapter_path, tasks_path, volume_num = init_chapter(root, config, chapter_num)
+    chapter_path, tasks_path, volume_num = init_chapter(root, config, chapter_num, paths=paths)
 
     show_write_mode(chapter_num, volume_num)
 
     print(f"  [FILE] 章节文件：{chapter_path.relative_to(root)}")
     print(f"  [TASK] 任务清单：{tasks_path.relative_to(root)}")
-    print(f"  [REF]  大纲参考：OUTLINE/volume-{volume_num}/chapter-{chapter_num:03d}.md")
+    print(f"  [REF]  大纲参考：OUTLINE/volume-{volume_num:03d}/chapter-{chapter_num:03d}.md")
     print(f"  [SPEC] 设定参考：SPECS/")
     print()
 
     # 显示章节大纲预览
-    outline_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    outline_path = root / 'OUTLINE' / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
     if outline_path.exists():
         outline = outline_path.read_text(encoding='utf-8')
         print(f"  {c('[PREVIEW] 本章大纲预览：', Colors.CYAN)}")

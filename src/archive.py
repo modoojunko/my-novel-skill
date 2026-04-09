@@ -12,6 +12,7 @@ import json
 import shutil
 from pathlib import Path
 from datetime import datetime
+from .paths import find_project_root, load_config, save_config, load_project_paths
 
 class Colors:
     HEADER = '\033[95m'
@@ -27,38 +28,7 @@ class Colors:
 def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists() or (current / 'story.yml').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
 
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    if not config_path.exists():
-        config_path = root / 'story.yml'
-    
-    if config_path.suffix == '.json':
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    else:
-        import yaml
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
-
-def save_config(root, config):
-    """保存配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
 
 def count_words(text: str) -> int:
     """统计字数"""
@@ -66,14 +36,16 @@ def count_words(text: str) -> int:
     english = len([w for w in text.split() if w.strip('.,!?;:()[]{}')])
     return chinese + english
 
-def archive_chapter(root, config, chapter_num, dry_run=False):
+def archive_chapter(root, config, chapter_num, dry_run=False, paths=None):
     """归档章节"""
+    if paths is None:
+        paths = load_project_paths(root)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
-    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
-    tasks_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.tasks.md'
-    outline_path = root / 'OUTLINE' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    chapter_path = paths['output_dir'] / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
+    tasks_path = paths['output_dir'] / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.tasks.md'
+    outline_path = root / 'OUTLINE' / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
 
     if not chapter_path.exists():
         print(f"  [ERROR] 章节 {chapter_num} 不存在，请先 story:write {chapter_num}")
@@ -81,7 +53,7 @@ def archive_chapter(root, config, chapter_num, dry_run=False):
 
     date_str = datetime.now().strftime('%Y-%m-%d')
     archive_name = f"{date_str}-chapter-{chapter_num:03d}"
-    archive_dir = root / 'ARCHIVE' / archive_name
+    archive_dir = paths['archive'] / archive_name
     archive_dir.mkdir(parents=True, exist_ok=True)
 
     if dry_run:
@@ -154,12 +126,14 @@ def archive_chapter(root, config, chapter_num, dry_run=False):
 
     return True, archive_dir, word_count
 
-def show_archive_preview(root, config, chapter_num):
+def show_archive_preview(root, config, chapter_num, paths=None):
     """显示归档预览"""
+    if paths is None:
+        paths = load_project_paths(root)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
-    chapter_path = root / 'CONTENT' / f'volume-{volume_num}' / f'chapter-{chapter_num:03d}.md'
+    chapter_path = paths['output_dir'] / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
 
     if not chapter_path.exists():
         return False
@@ -202,6 +176,7 @@ def main():
         sys.exit(1)
 
     config = load_config(root)
+    paths = load_project_paths(root)
 
     chapter_num = args.chapter
     if not chapter_num:
@@ -212,7 +187,7 @@ def main():
             sys.exit(1)
 
     if args.preview:
-        if show_archive_preview(root, config, chapter_num):
+        if show_archive_preview(root, config, chapter_num, paths=paths):
             return
         else:
             sys.exit(1)
@@ -221,7 +196,7 @@ def main():
     print(f"  章节：第{chapter_num}章")
     print()
 
-    result = archive_chapter(root, config, chapter_num, dry_run=args.dry_run)
+    result = archive_chapter(root, config, chapter_num, dry_run=args.dry_run, paths=paths)
 
     if result is True:
         if args.dry_run:

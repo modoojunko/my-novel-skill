@@ -13,6 +13,7 @@ import sys
 import json
 import argparse
 from pathlib import Path
+from .paths import load_project_paths
 from datetime import datetime
 
 
@@ -329,29 +330,34 @@ def edit_character(chars_dir: Path, name: str):
     return True
 
 
-def delete_character(chars_dir: Path, name: str):
+def delete_character(chars_dir: Path, name: str, force: bool = False, paths: dict = None):
     """删除人物卡"""
+    if paths is None:
+        # 从 chars_dir 推导 root
+        root = chars_dir.parent.parent  # chars_dir = SPECS/characters, root = project_root
+        paths = load_project_paths(root)
     char_file = chars_dir / f'{name}.md'
     if not char_file.exists():
         print(f"  {c(f'[ERROR] 人物不存在：{name}', Colors.RED)}")
         return False
 
-    # 确认删除
-    print(f"\n  {c('[警告] 此操作不可恢复！', Colors.RED)}")
-    confirm = input(f"  确认删除人物「{name}」？(y/N): ").strip().lower()
-    if confirm != 'y':
-        print("  已取消")
-        return False
+    # 确认删除（--force 跳过）
+    if not force:
+        print(f"\n  {c('[警告] 此操作不可恢复！', Colors.RED)}")
+        confirm = input(f"  确认删除人物「{name}」？(y/N): ").strip().lower()
+        if confirm != 'y':
+            print("  已取消")
+            return False
 
     # 备份后删除
-    backup_dir = root / 'ARCHIVE' / 'deleted'
+    backup_dir = paths['archive'] / 'deleted'
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_file = backup_dir / f'{name}_{timestamp}.md'
     char_file.rename(backup_file)
 
     print(f"  {c('[OK] 已删除', Colors.GREEN)}")
-    print(f"  备份位置：{backup_file.relative_to(root)}")
+    print(f"  备份位置：{backup_file}")
     return True
 
 
@@ -378,8 +384,22 @@ COGNITION_LAYERS = [
 ]
 
 
-def collect_cognition_interactive(name: str) -> dict:
-    """交互式收集六层认知"""
+def collect_cognition_interactive(name: str, cognition: dict = None) -> dict:
+    """收集六层认知（交互式或预填）
+
+    Args:
+        name: 角色名
+        cognition: 预填的认知数据，有值时跳过交互直接使用
+    """
+    # 非交互模式：直接使用传入的 cognition
+    if cognition:
+        # 补全缺失字段
+        for key, title, desc, examples in COGNITION_LAYERS:
+            if key not in cognition or not cognition[key]:
+                cognition[key] = '（待填写）'
+        return cognition
+
+    # 交互模式
     print(f"\n  {c('═══ 六层认知设定 ═══', Colors.BOLD + Colors.CYAN)}")
     print(f"  为「{name}」填充深层驱动力，让角色活起来。")
     print(f"  {c('（直接回车跳过，后续可编辑文件补充）', Colors.DIM)}")
@@ -423,7 +443,7 @@ def apply_cognition_to_template(content: str, cognition: dict) -> str:
     return content
 
 
-def create_character(chars_dir: Path, name: str, cognition_mode: bool = True):
+def create_character(chars_dir: Path, name: str, cognition_mode: bool = True, cognition: dict = None):
     """创建新人物卡"""
     char_file = chars_dir / f'{name}.md'
 
@@ -436,11 +456,11 @@ def create_character(chars_dir: Path, name: str, cognition_mode: bool = True):
     # 创建模板
     content = create_character_template(name)
 
-    # 交互式收集六层认知
-    if cognition_mode:
+    # 收集六层认知（有预填数据时跳过交互，无 cognition_mode 时跳过）
+    if cognition_mode or cognition:
         try:
-            cognition = collect_cognition_interactive(name)
-            content = apply_cognition_to_template(content, cognition)
+            cognition_data = collect_cognition_interactive(name, cognition=cognition)
+            content = apply_cognition_to_template(content, cognition_data)
         except (EOFError, KeyboardInterrupt):
             print(f"\n  {c('[INFO] 跳过六层认知，可后续编辑补充', Colors.DIM)}")
 
@@ -655,31 +675,36 @@ def edit_world(world_dir: Path, name: str):
     return True
 
 
-def delete_world(world_dir: Path, name: str):
+def delete_world(world_dir: Path, name: str, force: bool = False, paths: dict = None):
     """删除世界观条目"""
+    if paths is None:
+        root = world_dir.parent.parent  # world_dir = SPECS/world, root = project_root
+        paths = load_project_paths(root)
     world_file = world_dir / f'{name}.md'
     if not world_file.exists():
         print(f"  {c(f'[ERROR] 设定不存在：{name}', Colors.RED)}")
         return False
 
-    print(f"\n  {c('[警告] 此操作不可恢复！', Colors.RED)}")
-    confirm = input(f"  确认删除设定「{name}」？(y/N): ").strip().lower()
-    if confirm != 'y':
-        print("  已取消")
-        return False
+    # 确认删除（--force 跳过）
+    if not force:
+        print(f"\n  {c('[警告] 此操作不可恢复！', Colors.RED)}")
+        confirm = input(f"  确认删除设定「{name}」？(y/N): ").strip().lower()
+        if confirm != 'y':
+            print("  已取消")
+            return False
 
-    backup_dir = root / 'ARCHIVE' / 'deleted'
+    backup_dir = paths['archive'] / 'deleted'
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_file = backup_dir / f'{name}_{timestamp}.md'
     world_file.rename(backup_file)
 
     print(f"  {c('[OK] 已删除', Colors.GREEN)}")
-    print(f"  备份位置：{backup_file.relative_to(root)}")
+    print(f"  备份位置：{backup_file}")
     return True
 
 
-def create_world(world_dir: Path, name: str):
+def create_world(world_dir: Path, name: str, category: str = None):
     """创建新的世界观条目"""
     world_file = world_dir / f'{name}.md'
 
@@ -689,25 +714,31 @@ def create_world(world_dir: Path, name: str):
         print(f"  使用 'story:define world {name} --edit' 编辑")
         return False
 
-    # 选择类别
-    print("\n  请选择类别：")
-    for i, (cat, desc) in enumerate(WORLD_CATEGORIES, 1):
-        print(f"    {i}. {cat} - {desc}")
-    print()
+    # 选择类别（有 --category 参数时跳过交互）
+    if category:
+        # 验证类别是否合法
+        valid_cats = [cat for cat, _ in WORLD_CATEGORIES]
+        if category not in valid_cats:
+            print(f"  {c(f'[WARN] 类别「{category}」不在预设列表中，仍将使用', Colors.YELLOW)}")
+    else:
+        print("\n  请选择类别：")
+        for i, (cat, desc) in enumerate(WORLD_CATEGORIES, 1):
+            print(f"    {i}. {cat} - {desc}")
+        print()
 
-    while True:
-        try:
-            choice = input("  选择类别 [1-9，默认 9 其他]: ").strip()
-            if not choice:
-                category = '其他'
-                break
-            idx = int(choice) - 1
-            if 0 <= idx < len(WORLD_CATEGORIES):
-                category = WORLD_CATEGORIES[idx][0]
-                break
-            print(f"  {c('[ERROR] 无效选择，请重新输入', Colors.RED)}")
-        except ValueError:
-            print(f"  {c('[ERROR] 请输入数字', Colors.RED)}")
+        while True:
+            try:
+                choice = input("  选择类别 [1-9，默认 9 其他]: ").strip()
+                if not choice:
+                    category = '其他'
+                    break
+                idx = int(choice) - 1
+                if 0 <= idx < len(WORLD_CATEGORIES):
+                    category = WORLD_CATEGORIES[idx][0]
+                    break
+                print(f"  {c('[ERROR] 无效选择，请重新输入', Colors.RED)}")
+            except ValueError:
+                print(f"  {c('[ERROR] 请输入数字', Colors.RED)}")
 
     # 创建模板
     content = create_world_template(name, category)
@@ -802,6 +833,18 @@ def main():
     parser.add_argument('--edit', '-e', action='store_true', help='编辑设定')
     parser.add_argument('--delete', '-d', action='store_true', help='删除设定')
     parser.add_argument('--search', '-s', metavar='关键词', help='搜索设定')
+    parser.add_argument('--non-interactive', action='store_true', help='非交互模式（Agent 驱动）')
+    parser.add_argument('--force', '-f', action='store_true', help='跳过确认提示（删除等危险操作）')
+    # 人物卡属性参数
+    parser.add_argument('--alias', help='人物别名/绰号')
+    parser.add_argument('--gender', help='性别')
+    parser.add_argument('--age', help='年龄')
+    parser.add_argument('--occupation', help='职业')
+    parser.add_argument('--status', help='状态（存活/死亡/退场）')
+    parser.add_argument('--tags', help='标签（逗号分隔）')
+    parser.add_argument('--cognition', help='六层认知 JSON，格式：{"worldview":"...","self_definition":"...","values":"...","ability":"...","skill":"...","environment":"..."}')
+    # 世界观参数
+    parser.add_argument('--category', help='世界观类别（地理/历史/社会/魔法能力/科技/生物/物品/组织/其他）')
 
     args = parser.parse_args()
 
@@ -875,17 +918,38 @@ def main():
 
     # 删除
     if args.delete:
+        # 非交互模式下删除必须 --force
+        if args.non_interactive and not args.force:
+            print(f"  {c('ERROR: 非交互模式下删除需要 --force 参数', Colors.RED)}")
+            sys.exit(1)
         if spec_type == 'character':
-            delete_character(chars_dir, name)
+            delete_character(chars_dir, name, force=args.force)
         else:
-            delete_world(world_dir, name)
+            delete_world(world_dir, name, force=args.force)
         return
 
     # 创建（默认操作）
     if spec_type == 'character':
-        create_character(chars_dir, name)
+        # 解析 cognition JSON
+        cognition = None
+        if args.cognition:
+            try:
+                cognition = json.loads(args.cognition)
+                if not isinstance(cognition, dict):
+                    print(f"  {c('ERROR: --cognition 必须是 JSON 对象', Colors.RED)}")
+                    sys.exit(1)
+            except json.JSONDecodeError as e:
+                print(f"  {c(f'ERROR: --cognition JSON 解析失败: {e}', Colors.RED)}")
+                sys.exit(1)
+
+        # 非交互模式：cognition_mode 取决于是否有 --cognition
+        # 交互模式：默认启用 cognition_mode
+        if args.non_interactive:
+            create_character(chars_dir, name, cognition_mode=False, cognition=cognition)
+        else:
+            create_character(chars_dir, name, cognition_mode=True, cognition=cognition)
     else:
-        create_world(world_dir, name)
+        create_world(world_dir, name, category=args.category)
 
 
 if __name__ == '__main__':

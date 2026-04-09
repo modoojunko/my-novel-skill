@@ -12,6 +12,7 @@ import sys
 import json
 from pathlib import Path
 from datetime import datetime
+from .paths import find_project_root, load_config, save_config, load_project_paths
 
 class Colors:
     HEADER = '\033[95m'
@@ -27,39 +28,6 @@ class Colors:
 def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists() or (current / 'story.yml').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    if not config_path.exists():
-        config_path = root / 'story.yml'
-    
-    if config_path.suffix == '.json':
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    else:
-        import yaml
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
-
-def save_config(root, config):
-    """保存配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
-
 def get_volume_info(config, volume_num):
     """从 config 中获取指定卷的名称和主题"""
     volume_titles = config.get('structure', {}).get('volume_titles', [])
@@ -68,28 +36,30 @@ def get_volume_info(config, volume_num):
             return vt.get('title', f'卷{volume_num}'), vt.get('theme', '')
     return f'卷{volume_num}', ''
 
-def init_volume(root, config, volume_num):
+def init_volume(root, config, volume_num, paths=None):
     """初始化单卷（创建目录和大纲文件）"""
+    if paths is None:
+        paths = load_project_paths(root)
     volumes = config.get('structure', {}).get('volumes', 1)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
     title, theme = get_volume_info(config, volume_num)
 
     created = []
 
-    # 1. 创建 CONTENT/volume-N/ 目录
-    vol_content_dir = root / 'CONTENT' / f'volume-{volume_num}'
+    # 1. 创建 output_dir/volume-NNN/ 目录
+    vol_content_dir = paths['output_dir'] / f'volume-{volume_num:03d}'
     if not vol_content_dir.exists():
         vol_content_dir.mkdir(parents=True, exist_ok=True)
-        created.append(f'CONTENT/volume-{volume_num}/')
+        created.append(f'volume-{volume_num:03d}/')
 
-    # 2. 创建 OUTLINE/volume-N/ 目录
-    vol_outline_dir = root / 'OUTLINE' / f'volume-{volume_num}'
+    # 2. 创建 OUTLINE/volume-NNN/ 目录
+    vol_outline_dir = root / 'OUTLINE' / f'volume-{volume_num:03d}'
     if not vol_outline_dir.exists():
         vol_outline_dir.mkdir(parents=True, exist_ok=True)
-        created.append(f'OUTLINE/volume-{volume_num}/')
+        created.append(f'OUTLINE/volume-{volume_num:03d}/')
 
-    # 3. 创建 OUTLINE/volume-N.md 卷大纲文件
-    vol_outline_path = root / 'OUTLINE' / f'volume-{volume_num}.md'
+    # 3. 创建 OUTLINE/volume-NNN.md 卷大纲文件
+    vol_outline_path = root / 'OUTLINE' / f'volume-{volume_num:03d}.md'
     if not vol_outline_path.exists():
         chapters_content = []
         for i in range(1, chapters_per + 1):
@@ -118,17 +88,19 @@ def init_volume(root, config, volume_num):
 （待填充）
 """
         vol_outline_path.write_text(vol_content, encoding='utf-8')
-        created.append(f'OUTLINE/volume-{volume_num}.md')
+        created.append(f'OUTLINE/volume-{volume_num:03d}.md')
 
     return created
 
-def init_all_volumes(root, config):
+def init_all_volumes(root, config, paths=None):
     """批量初始化所有卷，跳过已存在的"""
+    if paths is None:
+        paths = load_project_paths(root)
     volumes = config.get('structure', {}).get('volumes', 1)
-    
+
     results = []
     for v in range(1, volumes + 1):
-        created = init_volume(root, config, v)
+        created = init_volume(root, config, v, paths=paths)
         title, _ = get_volume_info(config, v)
         if created:
             results.append((v, title, created))
@@ -137,8 +109,10 @@ def init_all_volumes(root, config):
 
     return results
 
-def show_volume_status(root, config, volume_num):
+def show_volume_status(root, config, volume_num, paths=None):
     """显示单卷状态"""
+    if paths is None:
+        paths = load_project_paths(root)
     title, theme = get_volume_info(config, volume_num)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
 
@@ -149,18 +123,18 @@ def show_volume_status(root, config, volume_num):
     print(f"{'=' * 60}")
 
     # 检查各部分状态
-    vol_outline = root / 'OUTLINE' / f'volume-{volume_num}.md'
-    vol_outline_dir = root / 'OUTLINE' / f'volume-{volume_num}'
-    vol_content_dir = root / 'CONTENT' / f'volume-{volume_num}'
+    vol_outline = root / 'OUTLINE' / f'volume-{volume_num:03d}.md'
+    vol_outline_dir = root / 'OUTLINE' / f'volume-{volume_num:03d}'
+    vol_content_dir = paths['output_dir'] / f'volume-{volume_num:03d}'
 
     outline_status = '[OK]' if vol_outline.exists() else '[  ]'
     outline_dir_status = '[OK]' if vol_outline_dir.exists() else '[  ]'
     content_status = '[OK]' if vol_content_dir.exists() else '[  ]'
 
     print(f"\n  目录/文件状态：")
-    print(f"    {outline_status} OUTLINE/volume-{volume_num}.md  卷大纲")
-    print(f"    {outline_dir_status} OUTLINE/volume-{volume_num}/      章节大纲目录")
-    print(f"    {content_status} CONTENT/volume-{volume_num}/      正文目录")
+    print(f"    {outline_status} OUTLINE/volume-{volume_num:03d}.md  卷大纲")
+    print(f"    {outline_dir_status} OUTLINE/volume-{volume_num:03d}/      章节大纲目录")
+    print(f"    {content_status} volume-{volume_num:03d}/      正文目录")
 
     # 统计章节大纲
     if vol_outline_dir.exists():
@@ -183,8 +157,10 @@ def show_volume_status(root, config, volume_num):
 
     print()
 
-def show_all_volumes(root, config):
+def show_all_volumes(root, config, paths=None):
     """显示所有卷概览"""
+    if paths is None:
+        paths = load_project_paths(root)
     volumes = config.get('structure', {}).get('volumes', 1)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
 
@@ -199,9 +175,9 @@ def show_all_volumes(root, config):
         title, theme = get_volume_info(config, v)
         theme_display = theme[:22] + '..' if len(theme) > 24 else theme
 
-        vol_outline = root / 'OUTLINE' / f'volume-{v}.md'
-        vol_outline_dir = root / 'OUTLINE' / f'volume-{v}'
-        vol_content_dir = root / 'CONTENT' / f'volume-{v}'
+        vol_outline = root / 'OUTLINE' / f'volume-{v:03d}.md'
+        vol_outline_dir = root / 'OUTLINE' / f'volume-{v:03d}'
+        vol_content_dir = paths['output_dir'] / f'volume-{v:03d}'
 
         outline_status = '[OK]' if vol_outline.exists() else '[  ]'
         content_status = '[OK]' if vol_content_dir.exists() else '[  ]'
@@ -234,11 +210,12 @@ def main():
         sys.exit(1)
 
     config = load_config(root)
+    paths = load_project_paths(root)
     volumes = config.get('structure', {}).get('volumes', 1)
 
     # 默认行为：列出所有卷
     if not args.volume and not args.init_all:
-        show_all_volumes(root, config)
+        show_all_volumes(root, config, paths=paths)
         return
 
     # --init-all：批量初始化
@@ -246,7 +223,7 @@ def main():
         print(f"\n[VOLUME] 批量初始化所有卷（共 {volumes} 卷）")
         print()
 
-        results = init_all_volumes(root, config)
+        results = init_all_volumes(root, config, paths=paths)
         for vol_num, title, created in results:
             if created:
                 print(f"  [OK] 卷{vol_num}「{title}」已创建：")
@@ -256,7 +233,7 @@ def main():
                 print(f"  [--] 卷{vol_num}「{title}」已存在，跳过")
 
         print()
-        show_all_volumes(root, config)
+        show_all_volumes(root, config, paths=paths)
         return
 
     # 指定卷号
@@ -268,7 +245,7 @@ def main():
         if args.init:
             # 初始化指定卷
             title, _ = get_volume_info(config, args.volume)
-            created = init_volume(root, config, args.volume)
+            created = init_volume(root, config, args.volume, paths=paths)
             if created:
                 print(f"\n  [OK] 卷{args.volume}「{title}」已创建：")
                 for item in created:
@@ -278,7 +255,7 @@ def main():
             print()
         else:
             # 查看指定卷状态
-            show_volume_status(root, config, args.volume)
+            show_volume_status(root, config, args.volume, paths=paths)
 
 if __name__ == '__main__':
     main()
