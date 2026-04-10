@@ -12,7 +12,7 @@ from pathlib import Path
 # 添加 src 目录到路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src import init, propose, plan, volume, outline, write, review, learn, style, stats, archive, status, define, update_specs, recall, export, snapshot
+from src import init, propose, plan, volume, outline, write, review, learn, style, stats, archive, status, define, update_specs, recall, export, snapshot, draft
 
 def show_banner():
     """显示横幅"""
@@ -107,6 +107,7 @@ def main():
         'init': init,
         'propose': propose,
         'plan': plan,
+        'draft': draft,
         'volume': volume,
         'outline': outline,
         'write': write,

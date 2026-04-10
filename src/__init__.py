@@ -4,6 +4,7 @@ from . import paths
 from . import init
 from . import propose
 from . import plan
+from . import draft
 from . import volume
 from . import outline
 from . import write
@@ -20,7 +21,7 @@ from . import export
 from . import snapshot
 
 __all__ = [
-    'paths', 'init', 'propose', 'plan', 'volume', 'outline',
+    'paths', 'init', 'propose', 'plan', 'draft', 'volume', 'outline',
     'write', 'review', 'learn', 'style', 'stats',
     'archive', 'status', 'define', 'update_specs',
     'recall', 'export', 'snapshot'
