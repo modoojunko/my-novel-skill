@@ -199,8 +199,10 @@ def generate_chapter_draft_prompt(root: Path, chapter_num: int, config: dict) ->
     return prompt
 
 
-def generate_chapter_draft(root: Path, chapter_num: int, config: dict) -> None:
+def generate_chapter_draft(root: Path, chapter_num: int, config: dict, paths: dict = None, args_json: bool = False) -> None:
     """生成章节细纲草稿"""
+    if paths is None:
+        paths = load_project_paths(root)
     chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
@@ -211,33 +213,60 @@ def generate_chapter_draft(root: Path, chapter_num: int, config: dict) -> None:
 
     # 检查是否已有细纲
     if chapter_path.exists():
-        print(f"\n  ⚠️  第 {chapter_num} 章已有细纲：{chapter_path}")
-        print(f"  使用 --revise 进入讨论模式，或 --confirm 确认定稿")
+        if args_json:
+            output_json_result({
+                "error": "已有细纲",
+                "target_file": str(chapter_path),
+                "next_step": "使用 --revise 进入讨论模式，或 --confirm 确认定稿"
+            })
+        else:
+            print(f"\n  ⚠️  第 {chapter_num} 章已有细纲：{chapter_path}")
+            print(f"  使用 --revise 进入讨论模式，或 --confirm 确认定稿")
         return
 
     # 生成 Prompt
     prompt = generate_chapter_draft_prompt(root, chapter_num, config)
 
-    print(f"\n{'='*60}")
-    print(f"  第 {chapter_num} 章细纲生成 Prompt")
-    print(f"{'='*60}\n")
-    print(prompt)
-
     # 保存 Prompt
-    prompt_file = vol_dir / f"chapter-{chapter_num:03d}-draft-prompt.md"
-    with open(prompt_file, "w", encoding="utf-8") as f:
-        f.write(prompt)
+    prompt_dir = get_prompt_storage_dir(root, paths)
+    prompt_filename = f"outline-draft-chapter-{chapter_num:03d}-prompt.md"
+    prompt_file = save_prompt_to_file(prompt, prompt_dir, prompt_filename)
 
-    print(f"\n  💡 Prompt 已保存到：{prompt_file}")
-    print(f"\n  下一步：")
-    print(f"    1. 将此 Prompt 发送给 AI 获取细纲草稿")
-    print(f"    2. 将 AI 返回的内容保存到 {chapter_path}")
-    print(f"    3. 使用 story:outline --revise {chapter_num} 进行讨论修改")
-    print(f"    4. 确认后使用 story:outline --confirm {chapter_num}")
+    # 构建导入命令
+    import_cmd = f"story outline --draft {chapter_num} --ai <your_output_file>"
+
+    if args_json:
+        # JSON 模式输出
+        result = {
+            "type": "outline-draft",
+            "target": f"chapter-{chapter_num:03d}",
+            "prompt_file": str(prompt_file),
+            "prompt_content": prompt,
+            "next_step": "请基于这个 prompt 生成章节细纲内容，只返回完整的章节细纲内容",
+            "import_command": import_cmd,
+            "target_file": str(chapter_path)
+        }
+        output_json_result(result)
+    else:
+        # 普通模式输出
+        print(f"\n{c('═' * 80, Colors.CYAN)}")
+        print(f"  {c('🤖 给 AI Agent 的 Prompt', Colors.BOLD)}")
+        print(f"{c('═' * 80, Colors.CYAN)}\n")
+        print(prompt)
+        print(f"\n{c('═' * 80, Colors.CYAN)}")
+        print(f"  {c('📋 Agent 操作指南', Colors.BOLD)}")
+        print(f"{c('═' * 80, Colors.CYAN)}\n")
+        print(f"  1. 基于上面的 Prompt 生成章节细纲")
+        print(f"  2. 只返回完整的章节细纲内容")
+        print(f"  3. 将你的输出保存到临时文件，或直接传递给 --ai 选项")
+        print(f"  4. 运行：{c(import_cmd, Colors.BOLD)}")
+        print(f"\n  💡 Prompt 已保存到：{c(prompt_file, Colors.DIM)}")
+        print(f"{c('═' * 80, Colors.CYAN)}\n")
 
     # 更新 stage
     update_chapter_stage(chapter_num, "outline-draft", root)
-    print(f"\n  ✓ 第 {chapter_num} 章 stage 已更新为: outline-draft")
+    if not args_json:
+        print(f"\n  ✓ 第 {chapter_num} 章 stage 已更新为: outline-draft")
 
 
 def generate_all_chapter_drafts(root: Path, volume_num: int, config: dict) -> None:
@@ -758,10 +787,31 @@ def show_swap_help():
 """)
 
 
+def output_json_result(result: dict) -> None:
+    """输出 JSON 格式结果"""
+    import json
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def get_prompt_storage_dir(root: Path, paths: dict) -> Path:
+    """获取 prompt 存储目录"""
+    prompt_dir = paths['outline'] / "prompts"
+    prompt_dir.mkdir(parents=True, exist_ok=True)
+    return prompt_dir
+
+
+def save_prompt_to_file(prompt: str, prompt_dir: Path, filename: str) -> Path:
+    """保存 prompt 到文件"""
+    prompt_file = prompt_dir / filename
+    prompt_file.write_text(prompt, encoding="utf-8")
+    return prompt_file
+
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='编辑大纲')
+    parser.add_argument('--json', action='store_true', help='输出 JSON 格式（Agent 驱动模式）')
     parser.add_argument('target', nargs='?', help='目标（meta/卷1/章节1）')
     parser.add_argument('--list', '-l', action='store_true', help='列出大纲结构')
     parser.add_argument('--init-chapters', type=int, metavar='VOLUME',
@@ -785,12 +835,16 @@ def main():
                         help='批量处理（需配合 --draft 使用）')
     parser.add_argument('--volume', '-v', type=int, metavar='N',
                         help='卷号（需配合 --draft --all 使用）')
+    parser.add_argument('--ai', help='从文件导入 AI 生成内容')
 
     args = parser.parse_args()
 
     root = find_project_root()
     if not root:
-        print(f"  [ERROR] 未找到项目目录")
+        if args.json:
+            output_json_result({"error": "未找到项目目录，请先运行 story:init"})
+        else:
+            print(f"  [ERROR] 未找到项目目录")
         sys.exit(1)
 
     config = load_config(root)
@@ -798,6 +852,38 @@ def main():
 
     volumes = config.get('structure', {}).get('volumes', 1)
     ensure_outline_dirs(root, volumes)
+
+    # 如果有 --ai 选项，导入 AI 生成的内容
+    if args.ai and args.draft:
+        ai_file = Path(args.ai)
+        if not ai_file.exists():
+            if args.json:
+                output_json_result({"error": f"AI 文件不存在: {ai_file}"})
+            else:
+                print(f"  {c('错误', Colors.RED)}: AI 文件不存在: {ai_file}")
+            sys.exit(1)
+
+        ai_content = ai_file.read_text(encoding="utf-8")
+        chapter_num = args.draft
+        chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
+        volume_num = ((chapter_num - 1) // chapters_per) + 1
+        chapter_path = paths['outline'] / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
+
+        if not chapter_path.parent.exists():
+            chapter_path.parent.mkdir(parents=True, exist_ok=True)
+
+        chapter_path.write_text(ai_content, encoding="utf-8")
+
+        if args.json:
+            output_json_result({
+                "type": "outline-draft-imported",
+                "target": f"chapter-{chapter_num:03d}",
+                "target_file": str(chapter_path),
+                "next_step": f"使用 story outline --revise {chapter_num} 进行讨论修改，或 story outline --confirm {chapter_num} 确认定稿"
+            })
+        else:
+            print(f"  {c('OK', Colors.GREEN)}: 已写入 {chapter_path}")
+        return
 
     # --init-chapters：批量初始化章节大纲
     if args.init_chapters:
@@ -874,7 +960,7 @@ def main():
             generate_all_chapter_drafts(root, args.volume, config)
         else:
             # 单章生成
-            generate_chapter_draft(root, chapter_num, config)
+            generate_chapter_draft(root, chapter_num, config, paths=paths, args_json=args.json)
         return
 
     # Pipeline: --revise 讨论模式

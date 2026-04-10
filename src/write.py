@@ -226,7 +226,7 @@ def generate_writing_prompt(root: Path, chapter_num: int, volume_num: int, confi
     return prompt
 
 
-def draft_chapter(root: Path, chapter_num: int, paths: dict = None) -> None:
+def draft_chapter(root: Path, chapter_num: int, paths: dict = None, args_json: bool = False, ai_file: Path = None) -> None:
     """生成章节正文草稿"""
     if paths is None:
         paths = load_project_paths(root)
@@ -234,13 +234,53 @@ def draft_chapter(root: Path, chapter_num: int, paths: dict = None) -> None:
     chapters_per = config.get("structure", {}).get("chapters_per_volume", 30)
     volume_num = ((chapter_num - 1) // chapters_per) + 1
 
+    # 如果有 --ai 选项，直接导入 AI 生成的内容
+    if ai_file:
+        if not ai_file.exists():
+            if args_json:
+                output_json_result({"error": f"AI 文件不存在: {ai_file}"})
+            else:
+                print(f"  {c('错误', Colors.RED)}: AI 文件不存在: {ai_file}")
+            sys.exit(1)
+
+        ai_content = ai_file.read_text(encoding="utf-8")
+        chapter_path = paths['output_dir'] / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md"
+
+        if not chapter_path.parent.exists():
+            chapter_path.parent.mkdir(parents=True, exist_ok=True)
+
+        chapter_path.write_text(ai_content, encoding="utf-8")
+
+        # 更新 stage
+        update_chapter_stage(chapter_num, "writing", root)
+
+        if args_json:
+            output_json_result({
+                "type": "write-draft-imported",
+                "target": f"chapter-{chapter_num:03d}",
+                "target_file": str(chapter_path),
+                "stage_updated": "writing",
+                "next_step": f"使用 story write {chapter_num} --revise 进行讨论修改，或 story write {chapter_num} --confirm 确认定稿"
+            })
+        else:
+            print(f"  {c('OK', Colors.GREEN)}: 已写入 {chapter_path}")
+            print(f"\n  ✓ 第 {chapter_num} 章 stage 已更新为: writing")
+        return
+
     # 检查细纲是否已确认
     stage = get_chapter_stage(chapter_num, root)
     if stage not in ["outline-confirmed", "writing"]:
-        print(f"\n  ⚠️  第 {chapter_num} 章细纲尚未确认（stage: {stage or '未设置'}）")
-        print(f"  建议先使用 story:outline --draft {chapter_num} 生成细纲")
-        print(f"  然后使用 story:outline --confirm {chapter_num} 确认细纲")
-        print(f"\n  如需强制生成正文，请先确认细纲")
+        if args_json:
+            output_json_result({
+                "error": "细纲尚未确认",
+                "stage": stage or "未设置",
+                "next_step": f"先使用 story outline --draft {chapter_num} 生成细纲，然后 story outline --confirm {chapter_num} 确认细纲"
+            })
+        else:
+            print(f"\n  ⚠️  第 {chapter_num} 章细纲尚未确认（stage: {stage or '未设置'}）")
+            print(f"  建议先使用 story:outline --draft {chapter_num} 生成细纲")
+            print(f"  然后使用 story:outline --confirm {chapter_num} 确认细纲")
+            print(f"\n  如需强制生成正文，请先确认细纲")
         return
 
     vol_dir = root / "OUTLINE" / f"volume-{volume_num:03d}"
@@ -248,26 +288,46 @@ def draft_chapter(root: Path, chapter_num: int, paths: dict = None) -> None:
 
     prompt = generate_writing_prompt(root, chapter_num, volume_num, config, paths=paths)
 
-    print(f"\n{'='*60}")
-    print(f"  第 {chapter_num} 章正文写作 Prompt")
-    print(f"{'='*60}\n")
-    print(prompt)
-
     # 保存 Prompt
-    prompt_file = vol_dir / f"chapter-{chapter_num:03d}-writing-prompt.md"
-    with open(prompt_file, "w", encoding="utf-8") as f:
-        f.write(prompt)
+    prompt_dir = get_prompt_storage_dir(root, paths)
+    prompt_filename = f"write-draft-chapter-{chapter_num:03d}-prompt.md"
+    prompt_file = save_prompt_to_file(prompt, prompt_dir, prompt_filename)
 
-    print(f"\n  💡 Prompt 已保存到：{prompt_file}")
-    print(f"\n  下一步：")
-    print(f"    1. 将此 Prompt 发送给 AI 获取正文草稿")
-    print(f"    2. 将 AI 返回的内容保存到 CONTENT/volume-{volume_num:03d}/chapter-{chapter_num:03d}.md")
-    print(f"    3. 使用 story:write {chapter_num} --revise 进行讨论修改")
-    print(f"    4. 确认后使用 story:write {chapter_num} --confirm")
+    # 构建导入命令
+    import_cmd = f"story write {chapter_num} --draft --ai <your_output_file>"
+
+    if args_json:
+        # JSON 模式输出
+        result = {
+            "type": "write-draft",
+            "target": f"chapter-{chapter_num:03d}",
+            "prompt_file": str(prompt_file),
+            "prompt_content": prompt,
+            "next_step": "请基于这个 prompt 生成章节正文内容，只返回完整的正文内容",
+            "import_command": import_cmd,
+            "target_file": str(paths['output_dir'] / f"volume-{volume_num:03d}" / f"chapter-{chapter_num:03d}.md")
+        }
+        output_json_result(result)
+    else:
+        # 普通模式输出
+        print(f"\n{c('═' * 80, Colors.CYAN)}")
+        print(f"  {c('🤖 给 AI Agent 的 Prompt', Colors.BOLD)}")
+        print(f"{c('═' * 80, Colors.CYAN)}\n")
+        print(prompt)
+        print(f"\n{c('═' * 80, Colors.CYAN)}")
+        print(f"  {c('📋 Agent 操作指南', Colors.BOLD)}")
+        print(f"{c('═' * 80, Colors.CYAN)}\n")
+        print(f"  1. 基于上面的 Prompt 生成章节正文")
+        print(f"  2. 只返回完整的正文内容")
+        print(f"  3. 将你的输出保存到临时文件，或直接传递给 --ai 选项")
+        print(f"  4. 运行：{c(import_cmd, Colors.BOLD)}")
+        print(f"\n  💡 Prompt 已保存到：{c(prompt_file, Colors.DIM)}")
+        print(f"{c('═' * 80, Colors.CYAN)}\n")
 
     # 更新 stage
     update_chapter_stage(chapter_num, "writing", root)
-    print(f"\n  ✓ 第 {chapter_num} 章 stage 已更新为: writing")
+    if not args_json:
+        print(f"\n  ✓ 第 {chapter_num} 章 stage 已更新为: writing")
 
 
 def revise_chapter(root: Path, chapter_num: int, paths: dict = None) -> None:
@@ -1023,6 +1083,26 @@ def show_write_guide():
 # 主函数
 # ============================================================================
 
+def output_json_result(result: dict) -> None:
+    """输出 JSON 格式结果"""
+    import json
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def get_prompt_storage_dir(root: Path, paths: dict) -> Path:
+    """获取 prompt 存储目录"""
+    prompt_dir = paths['outline'] / "prompts"
+    prompt_dir.mkdir(parents=True, exist_ok=True)
+    return prompt_dir
+
+
+def save_prompt_to_file(prompt: str, prompt_dir: Path, filename: str) -> Path:
+    """保存 prompt 到文件"""
+    prompt_file = prompt_dir / filename
+    prompt_file.write_text(prompt, encoding="utf-8")
+    return prompt_file
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='写作模式 - 支持手动写作和 Agent Prompt 生成',
@@ -1044,6 +1124,7 @@ Pipeline 模式：
   Agent 收到 Prompt 后生成内容，你可以通过 story:review 导入进行对比。
         """
     )
+    parser.add_argument('--json', action='store_true', help='输出 JSON 格式（Agent 驱动模式）')
     parser.add_argument('chapter', nargs='?', type=int, help='章节号')
     parser.add_argument('--show', '-s', action='store_true',
                         help='生成并显示完整的 Agent Prompt')
@@ -1053,6 +1134,8 @@ Pipeline 模式：
                         help='显示上下文信息（引用的文件）')
     parser.add_argument('--ai-import', metavar='FILE',
                         help='导入 AI 生成的内容文件')
+    parser.add_argument('--ai', metavar='FILE',
+                        help='从文件导入 AI 生成内容（Pipeline 模式）')
     parser.add_argument('--new', '-n', action='store_true',
                         help='强制创建新章节（覆盖已有）')
     # Pipeline 功能
@@ -1067,7 +1150,10 @@ Pipeline 模式：
 
     root = find_project_root()
     if not root:
-        print(f"  {c('[ERROR] 未找到项目目录，请先运行 story:init', Colors.RED)}")
+        if args.json:
+            output_json_result({"error": "未找到项目目录，请先运行 story:init"})
+        else:
+            print(f"  {c('[ERROR] 未找到项目目录，请先运行 story:init', Colors.RED)}")
         sys.exit(1)
 
     config = load_config(root)
@@ -1089,9 +1175,13 @@ Pipeline 模式：
     # Pipeline: --draft 生成正文草稿
     if args.draft:
         if not chapter_num:
-            print(f"  {c('[ERROR] 请指定章节号，如 story:write 5 --draft', Colors.RED)}")
+            if args.json:
+                output_json_result({"error": "请指定章节号，如 story write 5 --draft"})
+            else:
+                print(f"  {c('[ERROR] 请指定章节号，如 story:write 5 --draft', Colors.RED)}")
             sys.exit(1)
-        draft_chapter(root, chapter_num, paths=paths)
+        ai_file = Path(args.ai) if args.ai else None
+        draft_chapter(root, chapter_num, paths=paths, args_json=args.json, ai_file=ai_file)
         return
 
     # Pipeline: --revise 讨论模式

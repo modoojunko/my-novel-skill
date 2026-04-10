@@ -16,3 +16,8 @@ Thumbs.db
 
 # Story data (user-generated, not part of the skill)
 stories/
+
+# Temporary test files
+_test_*.py
+_test_output.txt
+docs/
