@@ -265,26 +265,43 @@ def generate_volume_outline(root: Path, volume_num: int, interactive: bool = Fal
 
     prompt = generate_volume_outline_prompt(root, volume_num, main_story, config)
 
-    print(f"\n{'='*60}")
-    print(f"  卷 {volume_num} 卷纲生成 Prompt")
-    print(f"{'='*60}\n")
-    print(prompt)
-
     # 保存 Prompt 到文件
     prompt_file = volume_dir / f"volume-{volume_num:03d}-outline-prompt.md"
     with open(prompt_file, "w", encoding="utf-8") as f:
         f.write(prompt)
 
-    print(f"\n  💡 Prompt 已保存到：{prompt_file}")
-    print(f"\n  下一步：")
-    print(f"    1. 将此 Prompt 发送给 AI 获取卷纲草稿")
-    print(f"    2. 将 AI 返回的内容保存到 {outline_file}")
-    print(f"    3. 使用 story:plan --volume {volume_num} --revise 进行讨论修改")
-    print(f"    4. 确认后使用 story:plan --volume {volume_num} --confirm")
-
     # 初始化卷 stage
     update_volume_stage(volume_num, "draft", root)
-    print(f"\n  ✓ 卷 {volume_num} stage 已更新为: draft")
+
+    if args.json:
+        # JSON 模式输出
+        result = {
+            "type": "plan-volume-outline",
+            "volume": volume_num,
+            "prompt_file": str(prompt_file),
+            "prompt_content": prompt,
+            "next_step": "请基于这个 prompt 生成卷纲，包含起承转合、核心事件、高潮设计等",
+            "target_file": str(outline_file),
+            "stage_updated": "draft"
+        }
+        output_json_result(result)
+    else:
+        # 普通模式输出
+        print(f"\n{'='*80}")
+        print(f"  🤖 给 AI Agent 的 Prompt")
+        print(f"{'='*80}\n")
+        print(prompt)
+        print(f"\n{'='*80}")
+        print(f"  📋 Agent 操作指南")
+        print(f"{'='*80}\n")
+        print(f"  1. 基于上面的 Prompt 生成卷纲")
+        print(f"  2. 卷纲要包含：起承转合、核心事件、高潮设计、伏笔布局")
+        print(f"  3. 将你的输出保存到：{outline_file}")
+        print(f"  4. 然后使用：story:plan --volume {volume_num} --revise 进行讨论修改")
+        print(f"  5. 确认后使用：story:plan --volume {volume_num} --confirm")
+        print(f"\n  💡 Prompt 已保存到：{prompt_file}")
+        print(f"\n  ✓ 卷 {volume_num} stage 已更新为: draft")
+        print(f"{'='*80}\n")
 
 
 def run_interactive_main_story(config: Dict, conflict: str = None, arc: str = None,
@@ -613,6 +630,12 @@ def show_pipeline_status(root: Path) -> None:
 # 主入口
 # ============================================================
 
+def output_json_result(result: dict):
+    """输出 JSON 格式结果"""
+    import json
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="卷纲生成与章节拆分",
@@ -633,6 +656,7 @@ def main():
         """
     )
 
+    parser.add_argument("--json", action="store_true", help="输出 JSON 格式（Agent 驱动模式）")
     parser.add_argument("--volume", "-v", type=int, metavar="N",
                         help="卷号")
     parser.add_argument("--chapters", "-c", type=int, metavar="N",
