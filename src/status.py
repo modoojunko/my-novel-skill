@@ -12,6 +12,14 @@ import json
 from pathlib import Path
 from datetime import datetime
 
+# 导入 draft 模块用于待补全统计
+try:
+    from . import draft
+    from . import paths
+    DRAFT_AVAILABLE = True
+except ImportError:
+    DRAFT_AVAILABLE = False
+
 class Colors:
     HEADER = '\033[95m'
     BLUE = '\033[94m'
@@ -161,6 +169,28 @@ def show_status(root: Path, config: dict):
   正文字数：{stats['content_words']:,}
   总计：{current_words:,}
 """)
+
+    # 显示待补全统计
+    if DRAFT_AVAILABLE:
+        print(f"[DRAFT] 待补全")
+        print('-' * 80)
+        try:
+            proj_paths = paths.load_project_paths(root)
+            pending = draft.get_all_pending_files(root, proj_paths)
+            if pending:
+                for path, file_type in pending:
+                    type_label = {
+                        'character': '角色',
+                        'meta': '总纲',
+                        'world': '世界观'
+                    }.get(file_type, file_type)
+                    print(f"  [{type_label}] {path.name}")
+                print(f"  共 {len(pending)} 个文件待补全")
+            else:
+                print(f"  {c('OK', Colors.GREEN)} 没有待补全的文件")
+        except Exception as e:
+            print(f"  {c('无法加载待补全列表', Colors.YELLOW)}")
+        print()
 
     print(f"[RECENT] 最近活动")
     print('-' * 80)
