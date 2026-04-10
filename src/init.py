@@ -421,6 +421,8 @@ def create_outline_files(base_path: Path, info: dict, volume_titles: list = None
 
     meta_content = f"""# 总大纲
 
+<!-- USER-CORE:START -->
+
 ## 故事概览
 {info.get('logline', '(见 story-concept.md)')}
 
@@ -428,11 +430,62 @@ def create_outline_files(base_path: Path, info: dict, volume_titles: list = None
 
 {chr(10).join(volumes_content)}
 
-## 主题线索
-（待填充）
+## 核心主题
+（简要描述故事的核心主题）
 
-## 伏笔记录
-（待填充）
+## 主要冲突
+（故事的核心冲突是什么）
+
+## 结局走向
+（故事大致的结局方向）
+
+<!-- USER-CORE:END -->
+
+<!-- AI-EXPAND:START -->
+
+（AI 基于 USER-CORE 的核心信息，在此处展开详细描述）
+
+## 故事概览（详细）
+
+### 背景设定详解
+
+### 核心冲突展开
+
+### 故事张力构建
+
+## 卷结构（详细）
+
+### 各卷关联分析
+
+### 起承转合设计
+
+### 节奏规划
+
+## 核心主题（详细）
+
+### 主题表达策略
+
+### 角色与主题的呼应
+
+### 主题深化路径
+
+## 主要冲突（详细）
+
+### 冲突层次分析
+
+### 冲突演变规划
+
+### 解决冲突的关键
+
+## 伏笔与线索（详细）
+
+### 主线伏笔设计
+
+### 支线伏笔安排
+
+### 呼应点规划
+
+<!-- AI-EXPAND:END -->
 """
 
     with open(meta_path, 'w', encoding='utf-8') as f:
