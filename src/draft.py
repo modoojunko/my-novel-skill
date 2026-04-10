@@ -311,9 +311,30 @@ def show_pending_list(root: Path, paths: Dict[str, Path]):
     print(f"  共 {len(pending)} 个文件待补全\n")
 
 
+def get_prompt_storage_dir(root: Path, paths: Dict[str, Path]) -> Path:
+    """获取 prompt 存储目录"""
+    prompt_dir = paths['outline'] / "prompts"
+    prompt_dir.mkdir(parents=True, exist_ok=True)
+    return prompt_dir
+
+
+def save_prompt_to_file(prompt: str, prompt_dir: Path, filename: str) -> Path:
+    """保存 prompt 到文件"""
+    prompt_file = prompt_dir / filename
+    prompt_file.write_text(prompt, encoding="utf-8")
+    return prompt_file
+
+
+def output_json_result(result: Dict[str, Any]) -> None:
+    """输出 JSON 格式结果"""
+    import json
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 def main():
     """主入口函数"""
     parser = argparse.ArgumentParser(description='用户起草 → AI 补全')
+    parser.add_argument('--json', action='store_true', help='输出 JSON 格式（Agent 驱动模式）')
     subparsers = parser.add_subparsers(title='子命令', dest='subcommand')
 
     # draft character <name>
@@ -437,20 +458,59 @@ def main():
 
             if user_core:
                 prompt = build_expansion_prompt(user_core, template_type)
-                print(f"{c('═' * 60, Colors.CYAN)}")
-                print(f"  {c('AI 补全 Prompt', Colors.BOLD)}")
-                print(f"{c('═' * 60, Colors.CYAN)}")
-                print()
-                print(prompt)
-                print()
-                print(f"{c('═' * 60, Colors.CYAN)}")
-                print()
-                print(f"  {c('提示', Colors.CYAN)}: 将上述 prompt 提供给 AI，然后使用：")
-                print(f"  {c('story draft {args.subcommand} {args.name if args.subcommand != \"meta\" else args.category} --ai <ai_output.md>', Colors.BOLD)}")
+
+                # 保存 prompt 到文件
+                prompt_dir = get_prompt_storage_dir(root, paths)
+                target_name = args.name if args.subcommand != "meta" else args.category
+                prompt_filename = f"draft-{args.subcommand}-{target_name}-prompt.md"
+                prompt_file = save_prompt_to_file(prompt, prompt_dir, prompt_filename)
+
+                # 构建导入命令
+                import_cmd = f"story draft {args.subcommand} {target_name} --ai <your_output_file>"
+
+                if args.json:
+                    # JSON 模式输出
+                    result = {
+                        "type": f"draft-{args.subcommand}",
+                        "target": target_name,
+                        "prompt_file": str(prompt_file),
+                        "prompt_content": prompt,
+                        "next_step": "请基于这个 prompt 生成 AI-EXPAND 内容，只返回 <!-- AI-EXPAND:START --> 和 <!-- AI-EXPAND:END --> 之间的内容",
+                        "import_command": import_cmd,
+                        "target_file": str(file_path)
+                    }
+                    output_json_result(result)
+                else:
+                    # 普通模式输出
+                    print(f"\n{c('═' * 80, Colors.CYAN)}")
+                    print(f"  {c('🤖 给 AI Agent 的 Prompt', Colors.BOLD)}")
+                    print(f"{c('═' * 80, Colors.CYAN)}\n")
+                    print(prompt)
+                    print(f"\n{c('═' * 80, Colors.CYAN)}")
+                    print(f"  {c('📋 Agent 操作指南', Colors.BOLD)}")
+                    print(f"{c('═' * 80, Colors.CYAN)}\n")
+                    print(f"  1. 基于上面的 Prompt 生成 AI-EXPAND 内容")
+                    print(f"  2. 只返回 <!-- AI-EXPAND:START --> 和 <!-- AI-EXPAND:END --> 之间的内容")
+                    print(f"  3. 将你的输出保存到临时文件，或直接传递给 --ai 选项")
+                    print(f"  4. 运行：{c(import_cmd, Colors.BOLD)}")
+                    print(f"\n  💡 Prompt 已保存到：{c(prompt_file, Colors.DIM)}")
+                    print(f"{c('═' * 80, Colors.CYAN)}\n")
             else:
-                print(f"  {c('错误', Colors.RED)}: 未找到 USER-CORE 区域")
+                if args.json:
+                    output_json_result({
+                        "error": "未找到 USER-CORE 区域",
+                        "target_file": str(file_path)
+                    })
+                else:
+                    print(f"  {c('错误', Colors.RED)}: 未找到 USER-CORE 区域")
         else:
-            print(f"  {c('错误', Colors.RED)}: 文件不存在: {file_path}")
+            if args.json:
+                output_json_result({
+                    "error": "文件不存在",
+                    "target_file": str(file_path) if file_path else None
+                })
+            else:
+                print(f"  {c('错误', Colors.RED)}: 文件不存在: {file_path}")
 
 
 if __name__ == '__main__':
