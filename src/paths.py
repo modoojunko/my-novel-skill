@@ -25,7 +25,7 @@ from typing import Optional, Dict
 
 def find_project_root(start: Optional[Path] = None) -> Optional[Path]:
     """
-    从给定目录（默认 cwd）向上查找包含 story.json 的项目根目录。
+    检查当前目录是否包含 story.json。
 
     Args:
         start: 起始查找目录，默认为当前工作目录
@@ -35,14 +35,8 @@ def find_project_root(start: Optional[Path] = None) -> Optional[Path]:
     """
     if start is None:
         start = Path.cwd()
-    current = start
-    for _ in range(10):
-        if (current / 'story.json').exists() or (current / 'story.yml').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
+    if (start / 'story.json').exists() or (start / 'story.yml').exists():
+        return start
     return None
 
 

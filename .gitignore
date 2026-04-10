@@ -14,6 +14,9 @@ Thumbs.db
 # WorkBuddy local data
 .workbuddy/
 
+# Claude Code local data
+.claude/
+
 # Story data (user-generated, not part of the skill)
 stories/
 

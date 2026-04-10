@@ -38,28 +38,10 @@ def c(text: str, color: str) -> str:
 
 
 # ============================================================================
-# 工具函数
+# 工具函数（从 paths.py 导入）
 # ============================================================================
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
-
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+from .paths import find_project_root, load_config
 
 
 def ensure_dirs(root):

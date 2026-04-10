@@ -25,47 +25,12 @@ class Colors:
 def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
 
-    # 向上查找 story.json 或 story.yml
-    current = cwd
-    for _ in range(10):  # 最多向上10层
-        if (current / 'story.json').exists() or (current / 'story.yml').exists():
-            return current
-        parent = current.parent
-        if parent == current:  # 到达根目录
-            break
-        current = parent
+# ============================================================================
+# 工具函数（从 paths.py 导入）
+# ============================================================================
 
-    # 检查命令行参数指定
-    if len(sys.argv) > 1:
-        path = Path(sys.argv[-1])
-        if path.is_dir() and ((path / 'story.json').exists() or (path / 'story.yml').exists()):
-            return path
-
-    return None
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    if not config_path.exists():
-        config_path = root / 'story.yml'  # 兼容旧格式
-    
-    if config_path.suffix == '.json':
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    else:
-        import yaml
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
-
-def save_config(root, config):
-    """保存配置"""
-    config_path = root / 'story.json'
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+from .paths import find_project_root, load_config, save_config
 
 def parse_target(target: str):
     """解析目标（章节/卷/场景）"""

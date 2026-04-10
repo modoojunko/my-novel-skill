@@ -34,27 +34,11 @@ def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
 
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
+# ============================================================================
+# 工具函数（从 paths.py 导入）
+# ============================================================================
 
-
-def load_config(root):
-    """加载项目配置"""
-    config_path = root / 'story.json'
-    if config_path.exists():
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
+from .paths import find_project_root, load_config
 
 
 def count_chinese_chars(text: str) -> int:

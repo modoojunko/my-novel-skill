@@ -16,6 +16,7 @@ from datetime import datetime
 try:
     from . import draft
     from . import paths
+    from .paths import find_project_root, load_config
     DRAFT_AVAILABLE = True
 except ImportError:
     DRAFT_AVAILABLE = False
@@ -33,33 +34,6 @@ class Colors:
 
 def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
-
-def find_project_root():
-    """查找项目根目录"""
-    cwd = Path.cwd()
-    current = cwd
-    for _ in range(10):
-        if (current / 'story.json').exists() or (current / 'story.yml').exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return None
-
-def load_config(root):
-    """加载配置"""
-    config_path = root / 'story.json'
-    if not config_path.exists():
-        config_path = root / 'story.yml'
-    
-    if config_path.suffix == '.json':
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    else:
-        import yaml
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
 
 def count_words_in_file(filepath: Path) -> int:
     """统计文件字数"""
