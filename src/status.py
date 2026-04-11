@@ -76,9 +76,11 @@ def get_progress(root: Path, config: dict):
     if world_dir.exists():
         stats['world_entries'] = len(list(world_dir.glob('*.md')))
 
-    content_dir = root / 'CONTENT'
-    draft_dir = root / 'CONTENT' / 'draft'
-    archive_dir = root / 'ARCHIVE'
+    # 使用 paths.py 解析正确的路径
+    proj_paths = paths.load_project_paths(root)
+    content_dir = proj_paths['output_dir']
+    draft_dir = proj_paths['draft']
+    archive_dir = proj_paths['archive']
 
     if draft_dir.exists():
         for f in draft_dir.glob('*.md'):
@@ -86,7 +88,7 @@ def get_progress(root: Path, config: dict):
 
     if content_dir.exists():
         for f in content_dir.glob('**/*.md'):
-            if 'draft' not in str(f):
+            if 'draft' not in str(f) and 'tasks' not in str(f):
                 stats['content_words'] += count_words_in_file(f)
 
     if archive_dir.exists():
@@ -97,7 +99,8 @@ def get_progress(root: Path, config: dict):
 
     if content_dir.exists():
         chapters = list(content_dir.glob('**/chapter-*.md'))
-        stats['written_chapters'] = len([ch for ch in chapters if 'draft' not in str(ch)])
+        stats['written_chapters'] = len([ch for ch in chapters
+                                          if 'draft' not in str(ch) and 'tasks' not in str(ch)])
 
     if archive_dir.exists():
         stats['archived_chapters'] = len(list(archive_dir.glob('**/final.md')))

@@ -15,6 +15,7 @@ import os
 import sys
 import json
 import re
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from .paths import find_project_root, load_config, save_config, load_project_paths
@@ -735,7 +736,6 @@ def swap_chapter_outlines(root, config, chapter_a: int, chapter_b: int):
     # 只是交换文件内容
 
     # 创建临时文件
-    import tempfile
     with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, suffix='.md') as tmp:
         tmp_path = Path(tmp.name)
 
@@ -789,7 +789,6 @@ def show_swap_help():
 
 def output_json_result(result: dict) -> None:
     """输出 JSON 格式结果"""
-    import json
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
@@ -1003,7 +1002,6 @@ def main():
             path = edit_volume_outline(root, config, num)
             print(f"  [OK] 已打开：{path}")
         elif '章' in target or target.isdigit():
-            import re
             match = re.search(r'(\d+)', target)
             if match:
                 num = int(match.group(1))

@@ -281,7 +281,12 @@ python story.py status
 
 ## 阶段 5：收尾阶段 —— 更新设定、快照、归档、导出
 
-**写完一章后，按顺序做：**
+**写完一章后，Agent 应主动引导用户按顺序执行以下步骤！**
+
+### 重要边界情况
+
+- **如果用户直接写正文（没有 AI 草稿）**：跳过 `review` 和 `learn` 步骤，直接进入 `update-specs` → `snapshot` → `archive`
+- **如果有 AI 草稿 + 用户修改**：完整执行 `review` → `learn` → `update-specs` → `snapshot` → `archive`
 
 ### 5.1 更新设定
 

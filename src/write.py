@@ -990,8 +990,89 @@ def show_full_context(root, config, chapter_num, volume_num):
 # 传统写作模式（保留原有功能）
 # ============================================================================
 
+def extract_scenes_from_outline(outline_content: str) -> list:
+    """从细纲中提取场景列表"""
+    scenes = []
+    lines = outline_content.split('\n')
+    in_scenes = False
+
+    for line in lines:
+        if '## 场景列表' in line or '### 场景列表' in line:
+            in_scenes = True
+            continue
+        if in_scenes and line.startswith('## '):
+            break
+        if in_scenes:
+            # 匹配场景格式："- 场景 X：..." 或 "1. ..."
+            stripped = line.strip()
+            # 跳过"认知状态引用"这类子项
+            if stripped and (stripped.startswith('-') or stripped[0].isdigit()):
+                # 清理场景文本
+                scene_text = stripped.lstrip('-0123456789. ')
+                # 跳过明显不是场景的行（如"认知状态引用"）
+                if scene_text and '认知状态引用' not in scene_text:
+                    scenes.append(scene_text)
+
+    return scenes
+
+
+def extract_pov_from_outline(outline_content: str) -> str:
+    """从细纲中提取 POV 角色"""
+    import re
+    pov_match = re.search(r'POV[:：]\s*(\S+)', outline_content)
+    if pov_match:
+        return pov_match.group(1).strip()
+    return "未指定"
+
+
+def create_tasks_for_agent(chapter_num: int, outline_content: str = "", target_words: int = 2000) -> str:
+    """创建给子 Agent 的约束清单（tasks.md）"""
+    scenes = extract_scenes_from_outline(outline_content)
+    pov_char = extract_pov_from_outline(outline_content)
+
+    if not scenes:
+        scenes = ["场景 1：开场", "场景 2：发展", "场景 3：高潮"]
+
+    scenes_markdown = "\n".join([f"- [ ] {scene}" for scene in scenes])
+
+    tasks = f"""# 写作约束：第{chapter_num}章
+
+## 必须包含的场景（按顺序，写完自动打 [x]）
+{scenes_markdown}
+
+## 硬性约束
+- POV 角色：{pov_char}
+- 禁止写{pov_char}不知道的信息
+- 禁止直接描写其他角色的内心活动
+- 预计字数：{target_words} 字（±10%）
+
+## 参考信息
+- 细纲：OUTLINE/volume-{{volume_num}}/chapter-{chapter_num:03d}.md
+- 人物设定：SPECS/characters/
+- 世界观：SPECS/world/
+
+---
+*由 Novel Workflow 生成 @ {datetime.now().strftime('%Y-%m-%d %H:%M')}*
+"""
+    return tasks
+
+
+def create_initial_history(chapter_num: int, word_count: int = 0) -> str:
+    """创建初始对话日志"""
+    history = f"""# 第{chapter_num}章 修改历史
+
+## {datetime.now().strftime('%Y-%m-%d %H:%M')} - AI 初始生成
+- 生成者：my-novel-write 子 Agent
+- 基于：完整 Prompt + tasks.md
+- 字数：约 {word_count} 字
+- 场景完成：{'' if word_count == 0 else '[x] 所有场景'}
+
+"""
+    return history
+
+
 def create_chapter_tasks(chapter_num):
-    """创建章节写作任务"""
+    """创建章节写作任务（保留原有功能，向后兼容）"""
     tasks = f"""# 任务清单：第{chapter_num}章
 
 ## 写作前检查
@@ -1019,7 +1100,7 @@ def create_chapter_tasks(chapter_num):
 
 
 def init_chapter(root, config, chapter_num, paths=None):
-    """初始化章节"""
+    """初始化章节（增强版：生成 tasks.md 和 history.md）"""
     if paths is None:
         paths = load_project_paths(root)
     chapters_per = config.get('structure', {}).get('chapters_per_volume', 30)
@@ -1030,6 +1111,15 @@ def init_chapter(root, config, chapter_num, paths=None):
 
     chapter_path = vol_dir / f'chapter-{chapter_num:03d}.md'
     tasks_path = vol_dir / f'chapter-{chapter_num:03d}.tasks.md'
+    history_path = vol_dir / f'chapter-{chapter_num:03d}.history.md'
+
+    # 读取细纲用于生成 tasks.md
+    outline_content = ""
+    outline_path = root / 'OUTLINE' / f'volume-{volume_num:03d}' / f'chapter-{chapter_num:03d}.md'
+    if outline_path.exists():
+        outline_content = outline_path.read_text(encoding='utf-8')
+
+    target_words = config.get('book', {}).get('target_words', 500000) // (chapters_per * config.get('structure', {}).get('volumes', 1))
 
     if not chapter_path.exists():
         content = f"""# 第{chapter_num}章：xxx
@@ -1039,8 +1129,16 @@ def init_chapter(root, config, chapter_num, paths=None):
 """
         chapter_path.write_text(content, encoding='utf-8')
 
+    # 生成给子 Agent 的约束清单（新格式）
     if not tasks_path.exists():
-        tasks_path.write_text(create_chapter_tasks(chapter_num), encoding='utf-8')
+        agent_tasks = create_tasks_for_agent(chapter_num, outline_content, target_words)
+        # 替换 volume_num 占位符
+        agent_tasks = agent_tasks.replace('{{volume_num}}', f'{volume_num:03d}')
+        tasks_path.write_text(agent_tasks, encoding='utf-8')
+
+    # 生成初始历史记录
+    if not history_path.exists():
+        history_path.write_text(create_initial_history(chapter_num), encoding='utf-8')
 
     config['progress']['current_chapter'] = chapter_num
     config['progress']['current_volume'] = volume_num
@@ -1048,7 +1146,7 @@ def init_chapter(root, config, chapter_num, paths=None):
         config['progress']['written_chapters'].append(chapter_num)
     save_config(root, config)
 
-    return chapter_path, tasks_path, volume_num
+    return chapter_path, tasks_path, history_path, volume_num
 
 
 def show_write_mode(chapter_num, volume_num):
@@ -1219,12 +1317,13 @@ Pipeline 模式：
         return
 
     # 传统写作模式：初始化章节
-    chapter_path, tasks_path, volume_num = init_chapter(root, config, chapter_num, paths=paths)
+    chapter_path, tasks_path, history_path, volume_num = init_chapter(root, config, chapter_num, paths=paths)
 
     show_write_mode(chapter_num, volume_num)
 
     print(f"  [FILE] 章节文件：{chapter_path.relative_to(root)}")
-    print(f"  [TASK] 任务清单：{tasks_path.relative_to(root)}")
+    print(f"  [TASK] 约束清单：{tasks_path.relative_to(root)}（给子 Agent）")
+    print(f"  [LOG]  修改日志：{history_path.relative_to(root)}")
     print(f"  [REF]  大纲参考：OUTLINE/volume-{volume_num:03d}/chapter-{chapter_num:03d}.md")
     print(f"  [SPEC] 设定参考：SPECS/")
     print()

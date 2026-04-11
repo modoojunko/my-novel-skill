@@ -125,6 +125,10 @@ def read_main_story(root: Path) -> Optional[str]:
         root / "story-main.md",
         root / "MAIN.md",
         root / "main.md",
+        root / "SPECS" / "meta" / "story-concept.md",
+        root / "SPECS" / "meta" / "story-main.md",
+        root / "SPECS" / "meta" / "MAIN.md",
+        root / "SPECS" / "meta" / "main.md",
     ]
     for path in candidates:
         if path.exists():
@@ -238,7 +242,8 @@ def generate_volume_outline_prompt(root: Path, volume_num: int, main_story: str,
 
 def generate_volume_outline(root: Path, volume_num: int, interactive: bool = False,
                             conflict: str = None, arc: str = None,
-                            events: str = None, tone: str = None) -> None:
+                            events: str = None, tone: str = None,
+                            args_json: bool = False) -> None:
     """生成卷纲草稿"""
     config = load_config(root)
     volume_dir = get_volume_dir(root, volume_num)
@@ -273,7 +278,7 @@ def generate_volume_outline(root: Path, volume_num: int, interactive: bool = Fal
     # 初始化卷 stage
     update_volume_stage(volume_num, "draft", root)
 
-    if args.json:
+    if args_json:
         # JSON 模式输出
         result = {
             "type": "plan-volume-outline",
@@ -632,7 +637,6 @@ def show_pipeline_status(root: Path) -> None:
 
 def output_json_result(result: dict):
     """输出 JSON 格式结果"""
-    import json
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
@@ -702,9 +706,11 @@ def main():
                 # 非交互模式至少需要 --conflict 或主线文件
                 generate_volume_outline(root, args.volume, interactive=False,
                                         conflict=args.conflict, arc=args.arc,
-                                        events=args.events, tone=args.tone)
+                                        events=args.events, tone=args.tone,
+                                        args_json=args.json)
             else:
-                generate_volume_outline(root, args.volume, args.interactive)
+                generate_volume_outline(root, args.volume, args.interactive,
+                                        args_json=args.json)
         return
 
     # 章节拆分

@@ -1,25 +1,36 @@
-# Publish only SKILL.md + story.py + src/
-# History references (not part of the skill runtime)
-a-novel-process/
-OpenSpec/
+# 草稿和临时文件
+*.draft
+*.tmp
+*.bak
 
-# Python cache
-__pycache__/
-*.pyc
+# 编辑器
+.vscode/
+.idea/
 
-# OS files
+# 系统文件
 .DS_Store
 Thumbs.db
 
-# WorkBuddy local data
-.workbuddy/
+# Python
+__pycache__/
+*.pyc
 
-# Claude Code local data
-.claude/
-
-# Story data (user-generated, not part of the skill)
+# 测试项目（临时）
+/workbuddy/
+OUTLINE/
+SPECS/
+STYLE/
+test_novel/
+test_define/
 stories/
-
-# Temporary test files
+templates/
+a-novel-process/
+process/
+output/
 _test_*.py
 _test_output.txt
+story.json
+
+# IDE
+.claude/
+.workbuddy/
