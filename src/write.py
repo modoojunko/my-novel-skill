@@ -1003,15 +1003,16 @@ def extract_scenes_from_outline(outline_content: str) -> list:
         if in_scenes and line.startswith('## '):
             break
         if in_scenes:
-            # 匹配场景格式："- 场景 X：..." 或 "1. ..."
             stripped = line.strip()
-            # 跳过"认知状态引用"这类子项
+            # 只匹配主场景行：以数字或-开头，但不包含子项的缩进
+            # 检查是否是主场景（不以空格或制表符开头，且包含"开场"、"发展"、"转折"或"POV"）
             if stripped and (stripped.startswith('-') or stripped[0].isdigit()):
-                # 清理场景文本
-                scene_text = stripped.lstrip('-0123456789. ')
-                # 跳过明显不是场景的行（如"认知状态引用"）
-                if scene_text and '认知状态引用' not in scene_text:
-                    scenes.append(scene_text)
+                # 检查是否是主场景（包含 POV 标记，或"开场"/"发展"/"转折"）
+                if 'POV:' in stripped or 'POV：' in stripped or '开场' in stripped or '发展' in stripped or '转折' in stripped:
+                    # 清理场景文本
+                    scene_text = stripped.lstrip('-0123456789. ')
+                    if scene_text:
+                        scenes.append(scene_text)
 
     return scenes
 

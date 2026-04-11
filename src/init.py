@@ -60,42 +60,6 @@ def select_option(prompt: str, options: list) -> int:
             pass
         print(f"  {c('无效选择，请重新输入', Colors.RED)}")
 
-def collect_basic_info() -> dict:
-    """收集基本信息"""
-    print(f"\n{c('[INFO] 基本信息', Colors.BOLD)}")
-    print("-" * 50)
-
-    info = {}
-
-    # 书名
-    info['title'] = input_with_default("书名")
-
-    # 类型
-    genre_options = ["玄幻", "都市", "科幻", "悬疑", "言情", "武侠", "历史", "游戏", "轻小说", "其他"]
-    genre_idx = select_option("选择类型", genre_options)
-    info['genre'] = genre_options[genre_idx - 1]
-
-    # 目标字数
-    target_words = input_with_default("目标字数（如：500000）", "500000")
-    try:
-        info['target_words'] = int(target_words)
-    except ValueError:
-        info['target_words'] = 500000
-
-    # 结构
-    volumes = input_with_default("计划卷数（如：3）", "3")
-    try:
-        info['volumes'] = int(volumes)
-    except ValueError:
-        info['volumes'] = 3
-
-    chapters_per = input_with_default("每卷章节数（如：30）", "30")
-    try:
-        info['chapters_per_volume'] = int(chapters_per)
-    except ValueError:
-        info['chapters_per_volume'] = 30
-
-    return info
 
 def collect_volume_titles(volumes: int) -> list:
     """交互式收集每卷的名称和主题"""
@@ -163,14 +127,16 @@ def collect_world() -> str:
     world = input_with_default("世界观/背景（跳过直接回车）")
     return world
 
-def collect_project_dirs(base_path: Path) -> dict:
+def collect_project_dirs(default_base: Path) -> dict:
     """收集项目目录配置：小说目录、过程文件目录、最终输出目录"""
     print(f"\n{c('[DIRS] 目录配置', Colors.BOLD)}")
     print("-" * 50)
-    print("  可将过程文件和最终输出分到不同目录，方便管理")
+    print("  请选择小说项目的存放位置")
     print()
 
-    project_root = input_with_default("  小说项目目录", str(base_path))
+    # 建议使用书名作为目录名
+    suggested_dir = str(default_base)
+    project_root = input_with_default("  小说项目目录", suggested_dir)
 
     default_process = str(Path(project_root) / "process")
     process_dir = input_with_default("  过程文件目录（prompts、快照、摘要、提案等）", default_process)
@@ -768,17 +734,12 @@ def main():
     # 确定项目路径
     base_path = Path(args.path).resolve()
 
-    # 检查是否已初始化
-    config_file = base_path / 'story.json'
-    if config_file.exists():
-        if args.non_interactive:
+    # 非交互模式：检查是否已初始化
+    if args.non_interactive:
+        config_file = base_path / 'story.json'
+        if config_file.exists():
             print(f"  {c('ERROR: 项目已初始化（发现 story.json），非交互模式无法覆盖', Colors.RED)}")
             sys.exit(1)
-        print(f"  {c('WARNING: 项目已初始化（发现 story.json）', Colors.YELLOW)}")
-        response = input(f"  重新初始化将覆盖配置，是否继续？ [y/N]: ").strip().lower()
-        if response != 'y':
-            print("  取消初始化")
-            sys.exit(0)
 
     welcome()
 
@@ -835,18 +796,64 @@ def main():
         process_dir = Path(args.process_dir).resolve() if args.process_dir else base_path / "process"
         output_dir = Path(args.output_dir).resolve() if args.output_dir else base_path / "output"
     else:
-        info = collect_basic_info()
+        # 交互模式：先问书名，再确定目录，最后收集其他信息
+        print(f"\n{c('[INFO] 基本信息', Colors.BOLD)}")
+        print("-" * 50)
+
+        # 1. 先问书名
+        title = input_with_default("书名")
+
+        # 2. 用书名建议目录名
+        suggested_dir = str(base_path / title) if title else str(base_path)
+        dirs = collect_project_dirs(Path(suggested_dir))
+        base_path = dirs['project_root']
+        process_dir = dirs['process_dir']
+        output_dir = dirs['output_dir']
+
+        # 3. 检查是否已初始化（在最终目标目录检查）
+        config_file = base_path / 'story.json'
+        if config_file.exists():
+            print(f"  {c('WARNING: 项目已初始化（发现 story.json）', Colors.YELLOW)}")
+            response = input(f"  重新初始化将覆盖配置，是否继续？ [y/N]: ").strip().lower()
+            if response != 'y':
+                print("  取消初始化")
+                sys.exit(0)
+
+        # 4. 继续收集剩余的基本信息
+        info = {}
+        info['title'] = title
+
+        # 类型
+        genre_options = ["玄幻", "都市", "科幻", "悬疑", "言情", "武侠", "历史", "游戏", "轻小说", "其他"]
+        genre_idx = select_option("选择类型", genre_options)
+        info['genre'] = genre_options[genre_idx - 1]
+
+        # 目标字数
+        target_words = input_with_default("目标字数（如：500000）", "500000")
+        try:
+            info['target_words'] = int(target_words)
+        except ValueError:
+            info['target_words'] = 500000
+
+        # 结构
+        volumes = input_with_default("计划卷数（如：3）", "3")
+        try:
+            info['volumes'] = int(volumes)
+        except ValueError:
+            info['volumes'] = 3
+
+        chapters_per = input_with_default("每卷章节数（如：30）", "30")
+        try:
+            info['chapters_per_volume'] = int(chapters_per)
+        except ValueError:
+            info['chapters_per_volume'] = 30
+
+        # 5. 收集其他信息
         logline = collect_story_concept()
         info['logline'] = logline
         characters = collect_characters()
         world = collect_world()
         volume_titles = collect_volume_titles(info['volumes'])
-
-        # 交互模式：收集三个目录
-        dirs = collect_project_dirs(base_path)
-        base_path = dirs['project_root']
-        process_dir = dirs['process_dir']
-        output_dir = dirs['output_dir']
 
     create_directory_structure(base_path, process_dir, output_dir, info['volumes'])
     create_config(base_path, info, logline, world, characters, volume_titles, process_dir, output_dir)
