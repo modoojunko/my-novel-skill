@@ -30,8 +30,11 @@ fi
 rm -rf "$DEST"
 mkdir -p "$DEST"
 cp "$SCRIPT_DIR/SKILL.md" "$DEST/"
+cp "$SCRIPT_DIR/AGENT_GUIDE.md" "$DEST/" 2>/dev/null || true
 cp "$SCRIPT_DIR/story.py" "$DEST/"
 cp -r "$SCRIPT_DIR/src" "$DEST/src"
+cp -r "$SCRIPT_DIR/docs" "$DEST/docs" 2>/dev/null || true
+cp -r "$SCRIPT_DIR/skills" "$DEST/skills" 2>/dev/null || true
 
 echo "Installed $SKILL_NAME to $DEST"
-echo "Files: SKILL.md, story.py, src/"
+echo "Files: SKILL.md, AGENT_GUIDE.md, story.py, src/, docs/, skills/"

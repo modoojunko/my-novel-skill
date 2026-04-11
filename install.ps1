@@ -34,8 +34,17 @@ if (Test-Path $DestDir) {
 # Copy core files only
 New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
 Copy-Item "$SrcDir\SKILL.md" "$DestDir\"
+if (Test-Path "$SrcDir\AGENT_GUIDE.md") {
+    Copy-Item "$SrcDir\AGENT_GUIDE.md" "$DestDir\"
+}
 Copy-Item "$SrcDir\story.py" "$DestDir\"
 Copy-Item "$SrcDir\src" "$DestDir\src" -Recurse
+if (Test-Path "$SrcDir\docs") {
+    Copy-Item "$SrcDir\docs" "$DestDir\docs" -Recurse
+}
+if (Test-Path "$SrcDir\skills") {
+    Copy-Item "$SrcDir\skills" "$DestDir\skills" -Recurse
+}
 
 Write-Host "Installed $SkillName to $DestDir"
-Write-Host "Files: SKILL.md, story.py, src/"
+Write-Host "Files: SKILL.md, AGENT_GUIDE.md, story.py, src/, docs/, skills/"
