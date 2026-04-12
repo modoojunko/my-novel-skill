@@ -14,12 +14,12 @@ story:draft - 用户起草 → AI 补全
 
 import os
 import sys
-import json
 import argparse
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
 from .paths import find_project_root, load_config, load_project_paths
+from .define import parse_character_frontmatter, parse_world_frontmatter
 
 
 class Colors:
@@ -31,6 +31,7 @@ class Colors:
     RED = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
+    DIM = '\033[2m'
 
 
 def c(text: str, color: str) -> str:
@@ -114,6 +115,110 @@ def replace_ai_expand(content: str, new_expand_content: str) -> str:
 
     new_expand_full = f"{AI_EXPAND_START}\n{new_expand_content.rstrip()}\n{AI_EXPAND_END}"
     return content[:start_idx] + new_expand_full + content[end_idx:]
+
+
+# ============================================================================
+# 核心设定加载器
+# ============================================================================
+
+def load_core_context(paths: Dict[str, Path], target_type: str, target_name: str) -> Dict[str, str]:
+    """
+    加载小说核心设定上下文，用于注入 draft prompt。
+
+    加载策略：
+    - 总纲：全文加载（超长时智能截断，8000字符上限）
+    - 世界观：全文加载，按类别分组（每个文件3000字符上限）
+    - 其他角色：列表 + 标签（不加载完整内容）
+    - 约束清单：从总纲中提取明确的规则
+
+    Args:
+        paths: 项目路径字典
+        target_type: 'character' | 'world' | 'meta'
+        target_name: 目标名称（角色名/世界观类别等）
+
+    Returns:
+        {
+            'meta': 总纲内容,
+            'world_summary': 世界观内容（按类别分组）,
+            'character_list': 已有角色列表,
+            'constraints': 约束清单
+        }
+    """
+    context = {
+        'meta': '',
+        'world_summary': '',
+        'character_list': '',
+        'constraints': ''
+    }
+
+    # 1. 加载总纲
+    meta_path = paths['outline'] / 'meta.md'
+    if meta_path.exists():
+        content = meta_path.read_text(encoding='utf-8')
+        if len(content) > 8000:
+            content = content[:8000] + "\n\n（... 总纲过长，已截断）"
+        context['meta'] = content
+
+    # 2. 加载世界观（全文，按类别）
+    world_dir = paths['world']
+    if world_dir.exists():
+        world_entries = []
+        for world_file in sorted(world_dir.glob('*.md')):
+            fm = parse_world_frontmatter(world_file)
+            name = fm.get('name', world_file.stem)
+            category = fm.get('category', '其他')
+
+            content = world_file.read_text(encoding='utf-8')
+            if len(content) > 3000:
+                content = content[:3000] + "\n\n（... 已截断）"
+
+            world_entries.append(f"### {category}：{name}\n\n{content}\n")
+
+        if world_entries:
+            context['world_summary'] = "\n".join(world_entries)
+
+    # 3. 加载角色列表（只列名字 + 标签，不加载完整内容）
+    chars_dir = paths['characters']
+    if chars_dir.exists():
+        char_list = []
+        for char_file in sorted(chars_dir.glob('*.md')):
+            if char_file.stem == target_name and target_type == 'character':
+                continue
+            fm = parse_character_frontmatter(char_file)
+            name = fm.get('name', char_file.stem)
+            occupation = fm.get('occupation', '')
+            status = fm.get('status', '')
+            tags = fm.get('tags', [])
+
+            line = f"- {name}"
+            if occupation:
+                line += f"（{occupation}）"
+            if status and status != '存活':
+                line += f" [{status}]"
+            if tags and tags != [name]:
+                if isinstance(tags, list):
+                    tag_str = ', #'.join(tags[:3])
+                else:
+                    tag_str = str(tags)[:50]
+                line += f" #{tag_str}"
+
+            char_list.append(line)
+
+        if char_list:
+            context['character_list'] = "已有角色：\n" + "\n".join(char_list)
+
+    # 4. 提取约束清单（从总纲中找明确的"规则"）
+    constraints = []
+    if context['meta']:
+        for line in context['meta'].split('\n'):
+            line = line.strip()
+            if line and (('必须' in line) or ('设定' in line) or ('规则' in line) or ('⚠️' in line)):
+                constraints.append(f"- {line}")
+
+    if constraints:
+        context['constraints'] = "\n".join(constraints)
+
+    return context
 
 
 # ============================================================================
@@ -245,13 +350,16 @@ def load_prompt_template(template_name: str) -> str:
     return prompt_path.read_text(encoding="utf-8")
 
 
-def build_expansion_prompt(user_core: str, template_name: str) -> str:
+def build_expansion_prompt(user_core: str, template_name: str,
+                          core_context: Dict[str, str], target_name: str) -> str:
     """
-    构建 AI 补全的 prompt。
+    构建 AI 补全的 prompt，包含核心设定上下文。
 
     Args:
         user_core: USER-CORE 内容
         template_name: 模板名
+        core_context: load_core_context() 返回的核心设定字典
+        target_name: 目标名称（角色名/世界观类别等）
 
     Returns:
         完整的 prompt
@@ -259,7 +367,34 @@ def build_expansion_prompt(user_core: str, template_name: str) -> str:
     template = load_prompt_template(template_name)
     if not template:
         return ""
-    return template.replace("{user_core_content}", user_core)
+
+    # 构建各 section
+    meta_section = ""
+    if core_context.get('meta'):
+        meta_section = "## 总纲概要\n\n" + core_context['meta']
+
+    world_section = ""
+    if core_context.get('world_summary'):
+        world_section = "## 世界观背景\n\n" + core_context['world_summary']
+
+    character_list_section = ""
+    if core_context.get('character_list'):
+        character_list_section = "## 已有角色\n\n" + core_context['character_list']
+
+    constraints_section = ""
+    if core_context.get('constraints'):
+        constraints_section = "## 重要约束\n\n" + core_context['constraints']
+
+    # 替换模板变量
+    prompt = template.replace("{user_core_content}", user_core)
+    prompt = prompt.replace("{character_name}", target_name)
+    prompt = prompt.replace("{target_name}", target_name)
+    prompt = prompt.replace("{meta_section}", meta_section)
+    prompt = prompt.replace("{world_section}", world_section)
+    prompt = prompt.replace("{character_list_section}", character_list_section)
+    prompt = prompt.replace("{constraints_section}", constraints_section)
+
+    return prompt
 
 
 # ============================================================================
@@ -313,7 +448,7 @@ def show_pending_list(root: Path, paths: Dict[str, Path]):
 
 def get_prompt_storage_dir(root: Path, paths: Dict[str, Path]) -> Path:
     """获取 prompt 存储目录"""
-    prompt_dir = paths['outline'] / "prompts"
+    prompt_dir = paths['prompts']
     prompt_dir.mkdir(parents=True, exist_ok=True)
     return prompt_dir
 
@@ -457,11 +592,15 @@ def main():
             user_core = parse_user_core(content)
 
             if user_core:
-                prompt = build_expansion_prompt(user_core, template_type)
+                target_name = args.name if args.subcommand == 'character' else (
+                    args.category if args.subcommand == 'world' else 'meta'
+                )
+                # 加载核心设定上下文
+                core_context = load_core_context(paths, args.subcommand, target_name)
+                prompt = build_expansion_prompt(user_core, template_type, core_context, target_name)
 
                 # 保存 prompt 到文件
                 prompt_dir = get_prompt_storage_dir(root, paths)
-                target_name = args.name if args.subcommand != "meta" else args.category
                 prompt_filename = f"draft-{args.subcommand}-{target_name}-prompt.md"
                 prompt_file = save_prompt_to_file(prompt, prompt_dir, prompt_filename)
 
