@@ -3,8 +3,8 @@
 """
 paths - Simplified path resolution module
 
-Three-directory design:
-- project_root: story.yaml + templates/
+Two-directory design:
+- project_root: story.yaml (config file at root)
 - process_dir: process/ (INFO, OUTLINE, PROMPTS, TEMPLATES)
 - output_dir: output/ (CONTENT, EXPORT, ARCHIVE)
 """

@@ -5,15 +5,15 @@ description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节
 
 # my-novel-v2 -- AI 辅助小说写作工作流（简化版）
 
-> 主 Agent 管流程 + 子 Agent 写正文。三目录设计 + 全 YAML 数据格式 + 智能提示词分层摘要 + 角色六层认知模型。
+> 主 Agent 管流程 + 子 Agent 写正文。两目录设计 + 全 YAML 数据格式 + 智能提示词分层摘要 + 角色六层认知模型。
 
 ## 📖 Agent 操作指南
 
 **本项目使用 v2 简化架构，核心特点：**
 
 1. **主 Agent + 子 Agent 分离**：主 Agent 负责收集信息和生成提示词，子 Agent 负责写正文
-2. **三目录设计**：
-   - `project_root`: story.yaml + templates/
+2. **两目录设计**：
+   - `project_root`: story.yaml（配置文件）
    - `process/`: 过程管理产物（INFO, OUTLINE, PROMPTS, TEMPLATES）
    - `output/`: 最终正文（CONTENT, EXPORT, ARCHIVE）
 3. **零依赖**：仅使用 Python 标准库，yaml 可选（json 自动降级）
