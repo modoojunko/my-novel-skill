@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from enum import Enum
 from .paths import load_project_paths
+from .anti_repeat import (
+    extract_scenes_from_snapshots,
+    generate_forbidden_list,
+    generate_suggested_scenes,
+    build_prompt_section,
+)
 
 
 class SummaryLevel(Enum):
@@ -293,6 +299,52 @@ def build_writing_prompt(
                 prompt += "\n"
 
     prompt += "═══════════════════════════════════════════════════════════════\n\n"
+
+    # ========== ANTI-REPETITION CHECK ==========
+    style = config.get('style', {})
+    anti_repeat_config = style.get('anti_repeat', {})
+
+    if anti_repeat_config.get('enabled', True):
+        lookback = anti_repeat_config.get('lookback_chapters', 5)
+        show_by_type = anti_repeat_config.get('show_by_type', True)
+        show_by_chapter = anti_repeat_config.get('show_by_chapter', True)
+        max_suggestions = anti_repeat_config.get('max_suggestions', 5)
+        heuristics = anti_repeat_config.get('heuristics', None)
+
+        # Get snapshot directory from outline dir
+        snapshots_dir = paths['outline']
+
+        # Extract scenes from previous chapters
+        scenes = extract_scenes_from_snapshots(
+            snapshots_dir,
+            volume_num,
+            chapter_num,
+            lookback
+        )
+
+        if scenes:
+            # Generate forbidden list
+            forbidden_list = generate_forbidden_list(scenes)
+
+            # Get chapter outline
+            chapter_outline = load_chapter_outline(paths['outline'], volume_num, chapter_num)
+
+            # Generate suggestions
+            suggestions = generate_suggested_scenes(
+                forbidden_list,
+                chapter_outline,
+                heuristics
+            )
+
+            # Build prompt section
+            anti_repeat_section = build_prompt_section(
+                forbidden_list,
+                suggestions,
+                show_by_type,
+                show_by_chapter
+            )
+
+            prompt += anti_repeat_section
 
     # ========== L0: Chapter info (MUST HAVE - complete) ==========
     chapter = load_chapter_outline(paths['outline'], volume_num, chapter_num)
