@@ -2,85 +2,128 @@
 # -*- coding: utf-8 -*-
 """
 story:init - Initialize simplified novel project
+
+Supports both interactive and non-interactive modes:
+- Interactive: `story init` (asks questions)
+- Non-interactive: `story init --non-interactive --args '{"title":"My Novel",...}'`
+- JSON output: `story init --json --non-interactive --args '{"title":"..."}'`
 """
 
 import sys
+import argparse
 from pathlib import Path
 from datetime import datetime
 from .paths import find_project_root, save_config, load_project_paths
+from . import cli
 
 
-class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
+def show_init_help():
+    print("""
+Usage: story init [options]
 
+Options:
+  --json               Output JSON format for AI consumption
+  --non-interactive    Non-interactive mode (use --args)
+  --args JSON          JSON string with init arguments
 
-def c(text: str, color: str) -> str:
-    return f"{color}{text}{Colors.ENDC}"
+Non-interactive args fields:
+  title               Book title (default: "My Novel")
+  genre               Genre (default: "玄幻")
+  target_words        Target word count (default: 500000)
+  volumes             Number of volumes (default: 3)
+  chapters_per_volume Chapters per volume (default: 30)
+  tone                Writing tone (default: "热血/成长")
+  pacing              Pacing preference (default: "适中")
+  description         Description preference (default: "详细")
+  dialogue            Dialogue ratio (default: "平衡")
+  examples            Comma-separated reference works (optional)
+  reinit              Force re-initialize if project exists (bool)
 
+Genres:
+  玄幻, 都市, 科幻, 悬疑, 言情, 武侠, 历史, 游戏, 轻小说, 其他
 
-def input_with_default(prompt: str, default: str = "") -> str:
-    """Get input with default value"""
-    user_input = input(f"  {prompt} [{default}]: ").strip()
-    return user_input if user_input else default
+Tones:
+  热血/成长, 轻松/幽默, 沉郁/厚重, 诙谐/搞笑, 严肃/正剧
 
-
-def select_option(prompt: str, options: list) -> int:
-    """Show selection menu"""
-    print(f"\n  {prompt}")
-    for i, opt in enumerate(options, 1):
-        print(f"    {i}. {opt}")
-    while True:
-        try:
-            choice = int(input(f"  Select [1-{len(options)}]: ").strip())
-            if 1 <= choice <= len(options):
-                return choice
-        except ValueError:
-            pass
-        print(f"  {c('Invalid selection', Colors.RED)}")
+Examples:
+  story init
+  story init --non-interactive --args '{"title":"My Book","genre":"玄幻"}'
+  story init --json --non-interactive --args '{"title":"My Book"}'
+""")
 
 
 def main():
-    print(f"\n{c('═' * 60, Colors.CYAN)}")
-    print(f"  {c('[INIT] Simplified Novel Workflow', Colors.BOLD)}")
-    print(f"{c('═' * 60, Colors.CYAN)}\n")
+    # Check for help
+    if len(sys.argv) > 1 and sys.argv[1] in ('help', '--help', '-h'):
+        show_init_help()
+        return
+
+    # Parse CLI arguments
+    parser = argparse.ArgumentParser(add_help=False)
+    args, init_args = cli.parse_cli_args(parser)
+
+    if not cli.is_interactive() and not cli.is_json_mode():
+        cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
+        cli.print_out(f"  {cli.c('[INIT] Simplified Novel Workflow', cli.Colors.BOLD)}")
+        cli.print_out(f"{cli.c('═' * 60, cli.Colors.CYAN)}\n")
+    elif cli.is_interactive():
+        cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
+        cli.print_out(f"  {cli.c('[INIT] Simplified Novel Workflow', cli.Colors.BOLD)}")
+        cli.print_out(f"{cli.c('═' * 60, cli.Colors.CYAN)}\n")
 
     # Check if already initialized
     root = Path.cwd()
     if (root / 'story.yaml').exists() or (root / 'story.json').exists():
-        print(f"  {c('Warning: story.yaml/story.json already exists', Colors.YELLOW)}")
-        response = input(f"  Re-initialize? [y/N]: ").strip().lower()
-        if response != 'y':
-            print("  Cancelled")
+        reinit = cli.confirm_action(
+            "story.yaml/story.json already exists. Re-initialize?",
+            default=False,
+            arg_key='reinit'
+        )
+        if not reinit:
+            if cli.is_json_mode():
+                cli.output_json({'success': False, 'error': 'Project already exists, cancelled'})
+            else:
+                cli.print_out("  Cancelled")
             return
 
     # Collect basic info
-    print(f"  {c('[STEP 1] Basic Info', Colors.BOLD)}")
-    title = input_with_default("Book title", "My Novel")
+    if cli.is_interactive():
+        cli.print_out(f"  {cli.c('[STEP 1] Basic Info', cli.Colors.BOLD)}")
 
     genre_options = ["玄幻", "都市", "科幻", "悬疑", "言情", "武侠", "历史", "游戏", "轻小说", "其他"]
-    genre_idx = select_option("Select genre", genre_options)
-    genre = genre_options[genre_idx - 1]
-
-    target_words = int(input_with_default("Target word count", "500000"))
-    volumes = int(input_with_default("Number of volumes", "3"))
-    chapters_per_volume = int(input_with_default("Chapters per volume", "30"))
-
-    print(f"\n  {c('[STEP 2] Writing Style', Colors.BOLD)}")
     tone_options = ["热血/成长", "轻松/幽默", "沉郁/厚重", "诙谐/搞笑", "严肃/正剧"]
-    tone_idx = select_option("Overall tone", tone_options)
-    tone = tone_options[tone_idx - 1]
 
-    pacing = input_with_default("Pacing preference", "适中")
-    description = input_with_default("Description preference", "详细")
-    dialogue = input_with_default("Dialogue ratio", "平衡")
-    examples = input_with_default("Reference works (optional)", "")
+    title = cli.input_with_default("Book title", "My Novel", arg_key='title')
+
+    # Genre selection
+    if cli.is_interactive():
+        genre_idx = cli.select_option("Select genre", genre_options, arg_key='genre')
+        genre = genre_options[genre_idx - 1]
+    else:
+        genre = init_args.get('genre', '玄幻')
+        if genre not in genre_options:
+            genre = '玄幻'
+
+    target_words = int(cli.input_with_default("Target word count", "500000", arg_key='target_words'))
+    volumes = int(cli.input_with_default("Number of volumes", "3", arg_key='volumes'))
+    chapters_per_volume = int(cli.input_with_default("Chapters per volume", "30", arg_key='chapters_per_volume'))
+
+    if cli.is_interactive():
+        cli.print_out(f"\n  {cli.c('[STEP 2] Writing Style', cli.Colors.BOLD)}")
+
+    # Tone selection
+    if cli.is_interactive():
+        tone_idx = cli.select_option("Overall tone", tone_options, arg_key='tone')
+        tone = tone_options[tone_idx - 1]
+    else:
+        tone = init_args.get('tone', '热血/成长')
+        if tone not in tone_options:
+            tone = '热血/成长'
+
+    pacing = cli.input_with_default("Pacing preference", "适中", arg_key='pacing')
+    description = cli.input_with_default("Description preference", "详细", arg_key='description')
+    dialogue = cli.input_with_default("Dialogue ratio", "平衡", arg_key='dialogue')
+    examples = cli.input_with_default("Reference works (optional)", "", arg_key='examples')
 
     # Create config
     config = {
@@ -123,13 +166,14 @@ def main():
     # Create initial templates (minimal)
     _create_default_templates(paths)
 
-    print(f"\n  {c('✓ Success!', Colors.GREEN)}")
-    print(f"  Project initialized at: {root}")
-    print(f"\n  Next steps:")
-    print(f"    1. story collect core      - Collect core story info")
-    print(f"    2. story collect protagonist - Create protagonist")
-    print(f"    3. story plan volume 1     - Plan volume 1")
-    print(f"    4. story status            - Check project status")
+    # Success output
+    next_steps = [
+        "story collect core      - Collect core story info",
+        "story collect protagonist - Create protagonist",
+        "story plan volume 1     - Plan volume 1",
+        "story status            - Check project status",
+    ]
+    cli.init_success_message(root, next_steps)
 
 
 def _create_default_templates(paths):

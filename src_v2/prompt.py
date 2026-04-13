@@ -223,29 +223,90 @@ def build_writing_prompt(
     """
     prompt = f"# 第{chapter_num}章写作任务\n\n"
 
-    # L0: Chapter info (MUST HAVE - complete)
-    chapter = load_chapter_outline(paths['outline'], volume_num, chapter_num)
-    if chapter:
-        prompt += "## [L0] 本章信息（必须完整）\n"
-        prompt += summarize_chapter_outline(chapter, 'full')
-        prompt += "\n\n"
-
-    # L1: Volume & protagonist (MUST HAVE - complete)
-    volume = load_volume_outline(paths['outline'], volume_num)
-    if volume:
-        prompt += "## [L1] 本卷信息（必须完整）\n"
-        prompt += summarize_volume_outline(volume, 'full')
-        prompt += "\n\n"
+    # ========== GLOBAL WRITING REQUIREMENTS (MUST READ FIRST) ==========
+    prompt += "═══════════════════════════════════════════════════════════════\n"
+    prompt += "  【全局写作要求 - 必须严格遵守】\n"
+    prompt += "═══════════════════════════════════════════════════════════════\n\n"
 
     # Style info
     style = config.get('style', {})
-    prompt += "## 写作风格（必须遵守）\n"
+    prompt += "## 核心写作风格\n"
     prompt += f"- 基调：{style.get('tone', 'N/A')}\n"
     prompt += f"- 节奏：{style.get('pacing', 'N/A')}\n"
     prompt += f"- 描写：{style.get('description', 'N/A')}\n"
     prompt += f"- 对话：{style.get('dialogue', 'N/A')}\n"
     if style.get('examples'):
         prompt += f"- 参考作品：{', '.join(style['examples'])}\n"
+    prompt += "\n"
+
+    # Writing requirements (from style.writing_requirements)
+    writing_reqs = style.get('writing_requirements', {})
+    if writing_reqs:
+        prompt += "## 写作原则（必须遵守）\n"
+        # Handle both dict and list formats
+        if isinstance(writing_reqs, dict):
+            for key, value in writing_reqs.items():
+                if value:
+                    prompt += f"- {key}: {value}\n"
+        elif isinstance(writing_reqs, list):
+            for req in writing_reqs:
+                prompt += f"- {req}\n"
+        prompt += "\n"
+
+    # Character cognition strategy
+    cognition_strategy = style.get('character_cognition_strategy')
+    if cognition_strategy:
+        prompt += "## 角色认知分层策略\n"
+        if isinstance(cognition_strategy, dict):
+            for key, value in cognition_strategy.items():
+                prompt += f"- {key}: {value}\n"
+        else:
+            prompt += f"{cognition_strategy}\n"
+        prompt += "\n"
+
+    # Dual-line style contrast
+    dual_line_style = style.get('dual_line_style_contrast')
+    if dual_line_style:
+        prompt += "## 双线风格对比\n"
+        if isinstance(dual_line_style, dict):
+            for key, value in dual_line_style.items():
+                prompt += f"- {key}: {value}\n"
+        else:
+            prompt += f"{dual_line_style}\n"
+        prompt += "\n"
+
+    # Other style configs
+    for key, value in style.items():
+        if key not in ['tone', 'pacing', 'description', 'dialogue', 'examples',
+                       'writing_requirements', 'character_cognition_strategy',
+                       'dual_line_style_contrast']:
+            if value:
+                prompt += f"## {key.replace('_', ' ').title()}\n"
+                if isinstance(value, dict):
+                    for k, v in value.items():
+                        prompt += f"- {k}: {v}\n"
+                elif isinstance(value, list):
+                    for item in value:
+                        prompt += f"- {item}\n"
+                else:
+                    prompt += f"{value}\n"
+                prompt += "\n"
+
+    prompt += "═══════════════════════════════════════════════════════════════\n\n"
+
+    # ========== L0: Chapter info (MUST HAVE - complete) ==========
+    chapter = load_chapter_outline(paths['outline'], volume_num, chapter_num)
+    if chapter:
+        prompt += "## [L0] 本章信息（必须完整）\n"
+        prompt += summarize_chapter_outline(chapter, 'full')
+        prompt += "\n\n"
+
+    # ========== L1: Volume & protagonist (MUST HAVE - complete) ==========
+    volume = load_volume_outline(paths['outline'], volume_num)
+    if volume:
+        prompt += "## [L1] 本卷信息（必须完整）\n"
+        prompt += summarize_volume_outline(volume, 'full')
+        prompt += "\n\n"
 
     return prompt
 
