@@ -22,12 +22,19 @@ from .progress import (
 from . import cli
 
 
-def generate_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict) -> str:
+def generate_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict, no_anti_repeat: bool = False) -> str:
     """Generate writing prompt for a chapter"""
     if not cli.is_json_mode():
         cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
         cli.print_out(f"  {cli.c(f'[WRITE] Generating Prompt for Chapter {chapter_num}', cli.Colors.BOLD)}")
         cli.print_out(f"{cli.c('═' * 60, cli.Colors.CYAN)}\n")
+
+    # Disable anti-repeat if requested
+    if no_anti_repeat:
+        style = config.get('style', {})
+        if 'anti_repeat' not in style:
+            style['anti_repeat'] = {}
+        style['anti_repeat']['enabled'] = False
 
     prompt = build_writing_prompt(paths, volume_num, chapter_num, config)
 
@@ -77,6 +84,7 @@ Options:
   --json            Output JSON format for AI consumption
   --non-interactive  Non-interactive mode
   --args JSON       JSON string with arguments (for non-interactive mode)
+  --no-anti-repeat  Skip anti-repetition check
 
 Examples:
   story write 1 --prompt
@@ -100,6 +108,7 @@ def main():
     volume_num = None
     prompt_only = False
     resume = False
+    no_anti_repeat = False
 
     # First pass to get chapter_num before argparse
     i = 1
@@ -110,6 +119,8 @@ def main():
             prompt_only = True
         elif arg == '--resume':
             resume = True
+        elif arg == '--no-anti-repeat':
+            no_anti_repeat = True
         elif arg == '--volume' and i + 1 < len(sys.argv):
             volume_num = int(sys.argv[i + 1])
             remaining_args.append(arg)
@@ -144,12 +155,12 @@ def main():
         volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
 
     if prompt_only:
-        generate_prompt(volume_num, chapter_num, paths, config)
+        generate_prompt(volume_num, chapter_num, paths, config, no_anti_repeat)
     else:
         if not cli.is_json_mode():
             cli.print_out(f"  Writing mode (full mode coming soon)")
             cli.print_out(f"  Use --prompt to just generate the prompt file")
-        generate_prompt(volume_num, chapter_num, paths, config)
+        generate_prompt(volume_num, chapter_num, paths, config, no_anti_repeat)
 
 
 if __name__ == '__main__':
