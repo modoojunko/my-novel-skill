@@ -9,34 +9,69 @@ Three-directory design:
 - output_dir: output/ (CONTENT, EXPORT, ARCHIVE)
 """
 
-import yaml
+import json
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 
 def find_project_root(start: Optional[Path] = None) -> Optional[Path]:
-    """Check current directory for story.yaml"""
+    """Check current directory for story.yaml (or story.json/story.yml for backward compatibility)"""
     if start is None:
         start = Path.cwd()
     if (start / 'story.yaml').exists():
+        return start
+    if (start / 'story.json').exists():
+        return start
+    if (start / 'story.yml').exists():
         return start
     return None
 
 
 def load_config(root: Path) -> Dict[str, Any]:
-    """Load story.yaml config"""
+    """Load story.yaml config (or story.json/story.yml for backward compatibility)"""
+    # Try story.yaml first (preferred format)
     config_path = root / 'story.yaml'
-    if not config_path.exists():
-        return {}
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f) or {}
+    if config_path.exists():
+        try:
+            import yaml
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f) or {}
+        except ImportError:
+            # Fall back to json if yaml not available
+            pass
+
+    # Try story.json (zero-dependency fallback)
+    config_path = root / 'story.json'
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    # Try story.yml
+    config_path = root / 'story.yml'
+    if config_path.exists():
+        try:
+            import yaml
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f) or {}
+        except ImportError:
+            pass
+
+    return {}
 
 
 def save_config(root: Path, config: Dict[str, Any]) -> None:
-    """Save config to story.yaml"""
-    config_path = root / 'story.yaml'
-    with open(config_path, 'w', encoding='utf-8') as f:
-        yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+    """Save config to story.json (zero-dependency default) or story.yaml if PyYAML available"""
+    # Prefer story.json for zero-dependency, but use story.yaml if PyYAML available
+    try:
+        import yaml
+        config_path = root / 'story.yaml'
+        with open(config_path, 'w', encoding='utf-8') as f:
+            yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+    except ImportError:
+        # Fall back to json (zero-dependency)
+        config_path = root / 'story.json'
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
 
 
 def load_project_paths(root: Path) -> Dict[str, Path]:
