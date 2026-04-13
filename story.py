@@ -9,7 +9,7 @@ from pathlib import Path
 # Add src_v2 to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src_v2 import init, paths
+from src_v2 import init, paths, status, collect
 
 
 def show_help():
@@ -49,6 +49,8 @@ def main():
 
     commands = {
         'init': init,
+        'status': status,
+        'collect': collect,
         # Add other modules as we implement them
     }
 
