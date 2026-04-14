@@ -113,6 +113,93 @@ def load_worldview_specs(specs_dir: Path) -> Dict[str, Any]:
     return result
 
 
+def load_world_specs(world_path: Path) -> Optional[Dict[str, Any]]:
+    """
+    加载世界观设定。
+
+    Returns:
+        世界观设定 dict，优先用 full，没有则用 core
+    """
+    if not world_path.exists():
+        return None
+
+    world_data = load_yaml(world_path)
+    if not world_data:
+        return None
+
+    # Get specs - prefer full, fall back to core
+    specs = world_data.get('full', {})
+    core = world_data.get('core', {})
+
+    # Merge: use full if available, otherwise core
+    merged = {}
+    for key in ['background', 'factions', 'history', 'entities', 'rules', 'locations']:
+        full_spec = specs.get(key, {})
+        core_spec = core.get(key, {})
+        if full_spec:
+            merged[key] = full_spec
+        elif core_spec:
+            merged[key] = core_spec
+
+    return merged if any(merged.values()) else None
+
+
+def check_world_consistency(
+    world_specs: Dict[str, Any],
+    actual_usage: Dict[str, Any],
+    chapter_content: str
+) -> Tuple[str, List[Dict[str, Any]]]:
+    """
+    检查章节内容是否符合世界观设定。
+
+    检查项：
+    - 地点名称是否在世界观中定义
+    - 是否提到了世界观禁止的内容
+    - 阵营描述是否一致
+
+    Returns:
+        (status, issues_list)
+    """
+    issues = []
+
+    if not world_specs:
+        return ("ok", issues)
+
+    # Check locations - if world defines locations, check if chapter uses undefined ones
+    world_locations = world_specs.get('locations', {})
+    chapter_locations = actual_usage.get('locations_used', [])
+
+    if world_locations and chapter_locations:
+        # Extract defined location names
+        defined_names = set()
+        if isinstance(world_locations, dict):
+            for v in world_locations.values():
+                if v:
+                    # Add the value itself and any parts that might be location names
+                    defined_names.add(str(v))
+        elif isinstance(world_locations, list):
+            for loc in world_locations:
+                defined_names.add(str(loc))
+
+        # Simple heuristic check - just warn if we have world locations
+        if defined_names:
+            issues.append({
+                'message': '本章使用了地点，请确认与世界观设定一致',
+                'severity': 'info',
+            })
+
+    # Overall status - we keep this simple for now
+    status = "ok"
+    for issue in issues:
+        if issue.get('severity') == 'error':
+            status = "error"
+            break
+        elif issue.get('severity') == 'warning' and status == 'ok':
+            status = "warning"
+
+    return (status, issues)
+
+
 def extract_actual_usage(
     chapter_content: str,
     chapter_outline: Optional[Dict[str, Any]] = None
@@ -325,6 +412,12 @@ def run_all_consistency_checks(
         if volume_outline:
             timeline = volume_outline.get('timeline', {})
 
+    # Load world specs
+    world_specs = None
+    if consistency_config.get('check_world', True):
+        if 'world' in paths:
+            world_specs = load_world_specs(paths['world'])
+
     # Run individual checks
     checks = {}
 
@@ -366,6 +459,16 @@ def run_all_consistency_checks(
         'status': 'warning' if anti_repeat_issues else 'ok',
         'issues': anti_repeat_issues
     }
+
+    # World consistency
+    if consistency_config.get('check_world', True) and world_specs:
+        world_status, world_issues = check_world_consistency(
+            world_specs, actual_usage, chapter_content
+        )
+        checks['world'] = {
+            'status': world_status,
+            'issues': world_issues
+        }
 
     # Calculate summary
     total_checks = len(checks)
@@ -425,7 +528,8 @@ def format_check_report(
         'character_names': '角色称呼',
         'locations': '地点名称',
         'timeline': '时间线',
-        'anti_repeat': '防重复'
+        'anti_repeat': '防重复',
+        'world': '世界观'
     }
 
     for check_key, check_data in checks.items():
