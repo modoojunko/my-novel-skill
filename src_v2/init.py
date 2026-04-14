@@ -158,6 +158,7 @@ def main():
                 "check_character_names": True,
                 "check_locations": True,
                 "check_timeline": True,
+                "check_world": True,
                 "block_on_errors": True,
                 "warn_on_warnings": True,
             },
@@ -179,6 +180,9 @@ def main():
 
     # Create initial templates (minimal)
     _create_default_templates(paths)
+
+    # Create initial world.yaml
+    _create_initial_world_yaml(paths)
 
     # Success output
     next_steps = [
@@ -225,6 +229,45 @@ def _create_default_templates(paths):
 
   请直接返回 YAML 格式。
 """, encoding='utf-8')
+
+
+def _create_initial_world_yaml(paths):
+    """Create empty world.yaml with initial structure"""
+    world_path = paths['world']
+    if not world_path.exists():
+        import json
+        try:
+            import yaml
+            use_yaml = True
+        except ImportError:
+            use_yaml = False
+
+        initial_data = {
+            'collected_at': None,
+            'expanded_at': None,
+            'core': {
+                'background': {},
+                'factions': {},
+                'history': {},
+                'entities': {},
+                'rules': {},
+                'locations': {},
+            },
+            'full': {
+                'background': {},
+                'factions': {},
+                'history': {},
+                'entities': {},
+                'rules': {},
+                'locations': {},
+            },
+        }
+
+        with open(world_path, 'w', encoding='utf-8') as f:
+            if use_yaml:
+                yaml.dump(initial_data, f, allow_unicode=True, sort_keys=False)
+            else:
+                json.dump(initial_data, f, ensure_ascii=False, indent=2)
 
 
 if __name__ == '__main__':
