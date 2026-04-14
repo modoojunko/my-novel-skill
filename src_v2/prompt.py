@@ -14,6 +14,7 @@ from .anti_repeat import (
     generate_suggested_scenes,
     build_prompt_section,
 )
+from .timeline import generate_date_anchor_prompt
 
 
 class SummaryLevel(Enum):
@@ -299,6 +300,21 @@ def build_writing_prompt(
                 prompt += "\n"
 
     prompt += "═══════════════════════════════════════════════════════════════\n\n"
+
+    # ========== DATE ANCHOR ==========
+    style = config.get('style', {})
+    date_anchor_config = style.get('date_anchor', {})
+
+    if date_anchor_config.get('enabled', True):
+        show_prev_next = date_anchor_config.get('show_prev_next', True)
+
+        # Load volume outline to get timeline
+        volume_outline = load_volume_outline(paths['outline'], volume_num)
+        if volume_outline:
+            timeline = volume_outline.get('timeline', {})
+            if timeline and timeline.get('enabled', False):
+                date_anchor = generate_date_anchor_prompt(timeline, chapter_num, show_prev_next)
+                prompt += date_anchor
 
     # ========== ANTI-REPETITION CHECK ==========
     style = config.get('style', {})
