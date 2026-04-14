@@ -239,6 +239,66 @@ def ensure_default_templates(templates_dir: Path) -> None:
   根据以上大纲写正文。
 """, encoding='utf-8')
 
+    # World collect template
+    world_collect = collect_dir / 'world.yaml'
+    if not world_collect.exists():
+        world_collect.write_text("""questions:
+  # Background
+  - key: background_time
+    question: "世界的时间设定？（如：202X年现代、古代、未来、架空等）"
+  - key: background_location
+    question: "主要地点/区域？"
+  - key: background_technology
+    question: "科技/魔法水平？"
+  - key: background_overview
+    question: "世界背景概述？"
+
+  # Factions
+  - key: factions_main
+    question: "有哪些主要阵营/势力？"
+
+  # History
+  - key: history_key_events
+    question: "有哪些关键历史事件？"
+
+  # Entities
+  - key: entities_special
+    question: "有哪些特殊存在/生物/种族？"
+
+  # Rules
+  - key: rules_world
+    question: "世界有什么特殊规则？"
+
+  # Locations
+  - key: locations_important
+    question: "有哪些重要地点？"
+""", encoding='utf-8')
+
+    # World expand template
+    world_expand = expand_dir / 'world.yaml'
+    if not world_expand.exists():
+        world_expand.write_text("""template: |
+  # 世界观设定扩写任务
+
+  ## 用户提供的核心信息
+  {user_answers}
+
+  ## 写作风格
+  - 基调：{style_tone}
+  - 节奏：{style_pacing}
+
+  ## 任务
+  基于以上信息，生成完整的世界观设定，包括：
+  1. background（详细的世界背景）
+  2. factions（详细的阵营/势力设定）
+  3. history（详细的历史/时间线）
+  4. entities（详细的特殊存在设定）
+  5. rules（详细的世界规则）
+  6. locations（详细的重要地点）
+
+  请直接返回 YAML 格式。
+""", encoding='utf-8')
+
 
 if __name__ == '__main__':
     # Test template loading
