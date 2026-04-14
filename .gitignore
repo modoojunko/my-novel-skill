@@ -34,3 +34,6 @@ story.json
 # IDE
 .claude/
 .workbuddy/
+
+# Git worktrees
+.worktrees/
