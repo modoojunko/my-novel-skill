@@ -147,6 +147,20 @@ def main():
             "description": description,
             "dialogue": dialogue,
             "examples": examples.split(',') if examples else [],
+            # Date anchor configuration
+            "date_anchor": {
+                "enabled": True,
+                "show_prev_next": True,
+            },
+            # Consistency check configuration
+            "consistency": {
+                "enabled": True,
+                "check_character_names": True,
+                "check_locations": True,
+                "check_timeline": True,
+                "block_on_errors": True,
+                "warn_on_warnings": True,
+            },
         },
         "progress": {
             "current_volume": 1,
