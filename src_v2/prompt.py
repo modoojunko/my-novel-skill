@@ -214,6 +214,73 @@ def get_characters_for_prompt(
     return result
 
 
+def load_and_format_world_specs(world_path: Path) -> Optional[str]:
+    """
+    Load world specs and format as prompt section.
+
+    Returns:
+        Formatted prompt section or None if no world specs
+    """
+    if not world_path.exists():
+        return None
+
+    world_data = load_yaml(world_path)
+    if not world_data:
+        return None
+
+    # Get specs - prefer full, fall back to core
+    specs = world_data.get('full', {})
+    core = world_data.get('core', {})
+
+    # Merge: use full if available, otherwise core
+    merged = {}
+    for key in ['background', 'factions', 'history', 'entities', 'rules', 'locations']:
+        full_spec = specs.get(key, {})
+        core_spec = core.get(key, {})
+        if full_spec:
+            merged[key] = full_spec
+        elif core_spec:
+            merged[key] = core_spec
+
+    # If nothing to show, return None
+    if not any(merged.values()):
+        return None
+
+    # Build the prompt section
+    section = "## 🌍 世界观设定（必读）\n\n"
+
+    # Title mapping
+    titles = {
+        'background': '世界背景',
+        'factions': '阵营/势力',
+        'history': '关键历史',
+        'entities': '特殊存在',
+        'rules': '世界规则',
+        'locations': '重要地点',
+    }
+
+    for key, title in titles.items():
+        spec = merged.get(key, {})
+        if spec:
+            section += f"### {title}\n"
+            # Format as bullet points
+            if isinstance(spec, dict):
+                for k, v in spec.items():
+                    if v:
+                        section += f"- {k}: {v}\n"
+            elif isinstance(spec, list):
+                for item in spec:
+                    section += f"- {item}\n"
+            else:
+                section += f"{spec}\n"
+            section += "\n"
+
+    section += "⚠️  要求：本章内容必须严格遵守以上世界观设定！\n\n"
+    section += "═══════════════════════════════════════════════════════════════\n\n"
+
+    return section
+
+
 def build_writing_prompt(
     paths: Dict[str, Any],
     volume_num: int,
@@ -300,6 +367,11 @@ def build_writing_prompt(
                 prompt += "\n"
 
     prompt += "═══════════════════════════════════════════════════════════════\n\n"
+
+    # ========== WORLD FRAMEWORK ==========
+    world_section = load_and_format_world_specs(paths['world'])
+    if world_section:
+        prompt += world_section
 
     # ========== DATE ANCHOR ==========
     style = config.get('style', {})
