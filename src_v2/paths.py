@@ -92,6 +92,7 @@ def load_project_paths(root: Path) -> Dict[str, Path]:
         process_dir / 'INFO' / 'characters' / 'main_cast',
         process_dir / 'INFO' / 'characters' / 'supporting',
         process_dir / 'INFO' / 'characters' / 'guest',
+        process_dir / 'INFO' / 'world',  # 预留世界观目录
         process_dir / 'OUTLINE',
         process_dir / 'OUTLINE' / 'volume-001',
         process_dir / 'PROMPTS',
@@ -118,6 +119,7 @@ def load_project_paths(root: Path) -> Dict[str, Path]:
         'content': output_dir / 'CONTENT',
         'export': output_dir / 'EXPORT',
         'archive': output_dir / 'ARCHIVE',
+        'world': process_dir / 'INFO' / 'world.yaml',
     }
 
 
