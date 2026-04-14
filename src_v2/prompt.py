@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from enum import Enum
 from .paths import load_project_paths
+from .anti_repeat import (
+    extract_scenes_from_snapshots,
+    generate_forbidden_list,
+    generate_suggested_scenes,
+    build_prompt_section,
+)
 
 
 class SummaryLevel(Enum):
@@ -223,29 +229,136 @@ def build_writing_prompt(
     """
     prompt = f"# 第{chapter_num}章写作任务\n\n"
 
-    # L0: Chapter info (MUST HAVE - complete)
-    chapter = load_chapter_outline(paths['outline'], volume_num, chapter_num)
-    if chapter:
-        prompt += "## [L0] 本章信息（必须完整）\n"
-        prompt += summarize_chapter_outline(chapter, 'full')
-        prompt += "\n\n"
-
-    # L1: Volume & protagonist (MUST HAVE - complete)
-    volume = load_volume_outline(paths['outline'], volume_num)
-    if volume:
-        prompt += "## [L1] 本卷信息（必须完整）\n"
-        prompt += summarize_volume_outline(volume, 'full')
-        prompt += "\n\n"
+    # ========== GLOBAL WRITING REQUIREMENTS (MUST READ FIRST) ==========
+    prompt += "═══════════════════════════════════════════════════════════════\n"
+    prompt += "  【全局写作要求 - 必须严格遵守】\n"
+    prompt += "═══════════════════════════════════════════════════════════════\n\n"
 
     # Style info
     style = config.get('style', {})
-    prompt += "## 写作风格（必须遵守）\n"
+    prompt += "## 核心写作风格\n"
     prompt += f"- 基调：{style.get('tone', 'N/A')}\n"
     prompt += f"- 节奏：{style.get('pacing', 'N/A')}\n"
     prompt += f"- 描写：{style.get('description', 'N/A')}\n"
     prompt += f"- 对话：{style.get('dialogue', 'N/A')}\n"
     if style.get('examples'):
         prompt += f"- 参考作品：{', '.join(style['examples'])}\n"
+    prompt += "\n"
+
+    # Writing requirements (from style.writing_requirements)
+    writing_reqs = style.get('writing_requirements', {})
+    if writing_reqs:
+        prompt += "## 写作原则（必须遵守）\n"
+        # Handle both dict and list formats
+        if isinstance(writing_reqs, dict):
+            for key, value in writing_reqs.items():
+                if value:
+                    prompt += f"- {key}: {value}\n"
+        elif isinstance(writing_reqs, list):
+            for req in writing_reqs:
+                prompt += f"- {req}\n"
+        prompt += "\n"
+
+    # Character cognition strategy
+    cognition_strategy = style.get('character_cognition_strategy')
+    if cognition_strategy:
+        prompt += "## 角色认知分层策略\n"
+        if isinstance(cognition_strategy, dict):
+            for key, value in cognition_strategy.items():
+                prompt += f"- {key}: {value}\n"
+        else:
+            prompt += f"{cognition_strategy}\n"
+        prompt += "\n"
+
+    # Dual-line style contrast
+    dual_line_style = style.get('dual_line_style_contrast')
+    if dual_line_style:
+        prompt += "## 双线风格对比\n"
+        if isinstance(dual_line_style, dict):
+            for key, value in dual_line_style.items():
+                prompt += f"- {key}: {value}\n"
+        else:
+            prompt += f"{dual_line_style}\n"
+        prompt += "\n"
+
+    # Other style configs
+    for key, value in style.items():
+        if key not in ['tone', 'pacing', 'description', 'dialogue', 'examples',
+                       'writing_requirements', 'character_cognition_strategy',
+                       'dual_line_style_contrast']:
+            if value:
+                prompt += f"## {key.replace('_', ' ').title()}\n"
+                if isinstance(value, dict):
+                    for k, v in value.items():
+                        prompt += f"- {k}: {v}\n"
+                elif isinstance(value, list):
+                    for item in value:
+                        prompt += f"- {item}\n"
+                else:
+                    prompt += f"{value}\n"
+                prompt += "\n"
+
+    prompt += "═══════════════════════════════════════════════════════════════\n\n"
+
+    # ========== ANTI-REPETITION CHECK ==========
+    style = config.get('style', {})
+    anti_repeat_config = style.get('anti_repeat', {})
+
+    if anti_repeat_config.get('enabled', True):
+        lookback = anti_repeat_config.get('lookback_chapters', 5)
+        show_by_type = anti_repeat_config.get('show_by_type', True)
+        show_by_chapter = anti_repeat_config.get('show_by_chapter', True)
+        max_suggestions = anti_repeat_config.get('max_suggestions', 5)
+        heuristics = anti_repeat_config.get('heuristics', None)
+
+        # Get snapshot directory from outline dir
+        snapshots_dir = paths['outline']
+
+        # Extract scenes from previous chapters
+        scenes = extract_scenes_from_snapshots(
+            snapshots_dir,
+            volume_num,
+            chapter_num,
+            lookback
+        )
+
+        if scenes:
+            # Generate forbidden list
+            forbidden_list = generate_forbidden_list(scenes)
+
+            # Get chapter outline
+            chapter_outline = load_chapter_outline(paths['outline'], volume_num, chapter_num)
+
+            # Generate suggestions
+            suggestions = generate_suggested_scenes(
+                forbidden_list,
+                chapter_outline,
+                heuristics
+            )
+
+            # Build prompt section
+            anti_repeat_section = build_prompt_section(
+                forbidden_list,
+                suggestions,
+                show_by_type,
+                show_by_chapter
+            )
+
+            prompt += anti_repeat_section
+
+    # ========== L0: Chapter info (MUST HAVE - complete) ==========
+    chapter = load_chapter_outline(paths['outline'], volume_num, chapter_num)
+    if chapter:
+        prompt += "## [L0] 本章信息（必须完整）\n"
+        prompt += summarize_chapter_outline(chapter, 'full')
+        prompt += "\n\n"
+
+    # ========== L1: Volume & protagonist (MUST HAVE - complete) ==========
+    volume = load_volume_outline(paths['outline'], volume_num)
+    if volume:
+        prompt += "## [L1] 本卷信息（必须完整）\n"
+        prompt += summarize_volume_outline(volume, 'full')
+        prompt += "\n\n"
 
     return prompt
 

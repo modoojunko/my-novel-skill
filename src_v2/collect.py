@@ -1,69 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-story:collect - Collect information via interactive Q&A
+story:collect - Collect information via interactive Q&A or non-interactive args
+
+Supports both interactive and non-interactive modes:
+- Interactive: `story collect core` (asks questions)
+- Non-interactive: `story collect core --non-interactive --args '{"story_concept":"..."}'`
+- JSON output: `story collect core --json --non-interactive --args '{"story_concept":"..."}'`
 """
 
 import sys
+import argparse
 from pathlib import Path
 from .paths import find_project_root, load_config, load_project_paths
 from .templates import get_collect_questions, ensure_default_templates
-
-
-class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-
-
-def c(text: str, color: str) -> str:
-    return f"{color}{text}{Colors.ENDC}"
-
-
-def input_with_default(prompt: str, default: str = "") -> str:
-    """Get input with default value"""
-    user_input = input(f"  {prompt} [{default}]: ").strip()
-    return user_input if user_input else default
-
-
-def collect_questions(templates_dir: Path, template_name: str) -> dict:
-    """
-    Interactive collection using a template.
-
-    Args:
-        templates_dir: Path to templates directory
-        template_name: Name of collect template to use
-
-    Returns:
-        Dictionary of answers
-    """
-    questions = get_collect_questions(templates_dir, template_name)
-    if not questions:
-        print(f"  {c('Warning: No questions found for template', Colors.YELLOW)} {template_name}")
-        return {}
-
-    answers = {}
-    print(f"\n{c('═' * 60, Colors.CYAN)}")
-    print(f"  {c(f'[COLLECT] {template_name.capitalize()} Info', Colors.BOLD)}")
-    print(f"{c('═' * 60, Colors.CYAN)}\n")
-
-    for q in questions:
-        key = q.get('key', '')
-        question = q.get('question', '')
-        if key and question:
-            answer = input_with_default(question, q.get('default', ''))
-            answers[key] = answer
-
-    print(f"\n  {c('✓ Collected answers:', Colors.GREEN)}")
-    for key, value in answers.items():
-        print(f"    {key}: {value}")
-
-    return answers
+from . import cli
 
 
 def save_answers(info_dir: Path, template_name: str, answers: dict) -> Path:
@@ -104,7 +55,7 @@ def save_answers(info_dir: Path, template_name: str, answers: dict) -> Path:
 
 def show_collect_help():
     print("""
-Usage: story collect <target>
+Usage: story collect <target> [options]
 
 Targets:
   core          Collect core story info
@@ -112,10 +63,17 @@ Targets:
   mainline      Collect story mainline
   volume <num>  Collect volume outline info
 
+Options:
+  --json               Output JSON format for AI consumption
+  --non-interactive    Non-interactive mode (use --args)
+  --args JSON          JSON string with answers
+
 Examples:
   story collect core
   story collect protagonist
   story collect volume 1
+  story collect core --non-interactive --args '{"story_concept":"...","core_theme":"..."}'
+  story collect core --json --non-interactive --args '{"story_concept":"..."}'
 """)
 
 
@@ -124,13 +82,35 @@ def main():
         show_collect_help()
         return
 
+    # Check for help
+    if sys.argv[1] in ('help', '--help', '-h'):
+        show_collect_help()
+        return
+
     target = sys.argv[1].lower()
 
+    # Parse remaining args for collect
+    remaining_args = sys.argv[2:]
+    volume_num = None
+
+    if target == 'volume':
+        if len(remaining_args) < 1 or remaining_args[0].startswith('-'):
+            show_collect_help()
+            return
+        volume_num = remaining_args[0]
+        remaining_args = remaining_args[1:]
+
+    # Insert a dummy program name for argparse
+    sys.argv = ['story-collect'] + remaining_args
+
+    # Parse CLI arguments
+    parser = argparse.ArgumentParser(add_help=False)
+    args, collect_args = cli.parse_cli_args(parser)
+
+    # Find project root
     root = find_project_root()
     if not root:
-        print("  Error: Not in a novel project (no story.yaml/story.json)")
-        print("  Run 'story init' first")
-        return
+        cli.error_message("Not in a novel project (no story.yaml/story.json). Run 'story init' first.")
 
     config = load_config(root)
     paths = load_project_paths(root)
@@ -147,27 +127,31 @@ def main():
     }
 
     if target not in target_map and target != 'volume':
-        print(f"  Unknown target: {target}")
-        show_collect_help()
-        return
+        cli.error_message(f"Unknown target: {target}")
 
     template_name = target_map.get(target, target)
 
+    # Get questions
+    questions = get_collect_questions(paths['templates'], template_name)
+    if not questions:
+        cli.warn_message(f"No questions found for template: {template_name}")
+        questions = []
+
+    # Collect answers
+    answers = cli.collect_questions(questions, template_name)
+
+    if not answers:
+        if cli.is_json_mode():
+            cli.output_json({'success': False, 'error': 'No answers collected'})
+        return
+
     # Handle volume target with number
-    if target == 'volume':
-        if len(sys.argv) < 3:
-            print("  Usage: story collect volume <number>")
-            return
-        volume_num = sys.argv[2]
-        answers = collect_questions(paths['templates'], template_name)
-        if answers:
-            out_path = save_answers(paths['info'], f'volume-{volume_num}', answers)
-            print(f"\n  {c('✓ Saved to:', Colors.GREEN)} {out_path}")
+    if target == 'volume' and volume_num:
+        out_path = save_answers(paths['info'], f'volume-{volume_num}', answers)
     else:
-        answers = collect_questions(paths['templates'], template_name)
-        if answers:
-            out_path = save_answers(paths['info'], template_name, answers)
-            print(f"\n  {c('✓ Saved to:', Colors.GREEN)} {out_path}")
+        out_path = save_answers(paths['info'], template_name, answers)
+
+    cli.collect_success_message(out_path, answers)
 
 
 if __name__ == '__main__':
