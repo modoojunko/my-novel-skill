@@ -137,7 +137,7 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
 
     # Create outline
     outline = create_chapter_outline(chapter_num, volume_num, title, pov)
-    outline['brief_summary'] = input_with_default("Brief summary", "")
+    outline['summary'] = input_with_default("Chapter summary (high-level overview: plot progression, character arcs)", "")
 
     # Save
     save_chapter_outline(outline_dir, volume_num, chapter_num, outline)

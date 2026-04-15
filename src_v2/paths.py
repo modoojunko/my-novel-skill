@@ -92,7 +92,13 @@ def load_project_paths(root: Path) -> Dict[str, Path]:
         process_dir / 'INFO' / 'characters' / 'main_cast',
         process_dir / 'INFO' / 'characters' / 'supporting',
         process_dir / 'INFO' / 'characters' / 'guest',
-        process_dir / 'INFO' / 'world',  # 预留世界观目录
+        # World building directories (Issue #4)
+        process_dir / 'INFO' / 'world',
+        process_dir / 'INFO' / 'world' / 'factions',
+        process_dir / 'INFO' / 'world' / 'history',
+        process_dir / 'INFO' / 'world' / 'powers',
+        process_dir / 'INFO' / 'world' / 'organizations',
+        process_dir / 'INFO' / 'world' / 'locations',
         process_dir / 'OUTLINE',
         process_dir / 'OUTLINE' / 'volume-001',
         process_dir / 'PROMPTS',
@@ -113,13 +119,20 @@ def load_project_paths(root: Path) -> Dict[str, Path]:
         'output': output_dir,
         'info': process_dir / 'INFO',
         'characters': process_dir / 'INFO' / 'characters',
+        'world': process_dir / 'INFO' / 'world',
+        'world_factions': process_dir / 'INFO' / 'world' / 'factions',
+        'world_history': process_dir / 'INFO' / 'world' / 'history',
+        'world_powers': process_dir / 'INFO' / 'world' / 'powers',
+        'world_organizations': process_dir / 'INFO' / 'world' / 'organizations',
+        'world_locations': process_dir / 'INFO' / 'world' / 'locations',
         'outline': process_dir / 'OUTLINE',
         'prompts': process_dir / 'PROMPTS',
         'templates': process_dir / 'TEMPLATES',
         'content': output_dir / 'CONTENT',
         'export': output_dir / 'EXPORT',
         'archive': output_dir / 'ARCHIVE',
-        'world': process_dir / 'INFO' / 'world.yaml',
+        'world_basic': process_dir / 'INFO' / 'world' / 'basic.yaml',
+        'world_timeline': process_dir / 'INFO' / 'world' / 'timeline.yaml',
     }
 
 

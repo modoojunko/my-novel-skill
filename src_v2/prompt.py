@@ -100,9 +100,16 @@ def summarize_chapter_outline(chapter: Dict[str, Any], level: str = 'full') -> s
     summary += f"POV: {info.get('pov', '')}\n"
 
     if level == 'core':
-        brief = chapter.get('brief_summary', '')
-        if brief:
-            summary += f"Summary: {brief}\n"
+        summary_text = chapter.get('summary', '') or chapter.get('brief_summary', '')
+        if summary_text:
+            summary += f"Summary: {summary_text}\n"
+    
+    # Add key_scenes if available
+    key_scenes = chapter.get('key_scenes', [])
+    if key_scenes and level in ['core', 'full']:
+        summary += "Key Scenes:\n"
+        for i, scene in enumerate(key_scenes, 1):
+            summary += f"  {i}. {scene}\n"
 
     return summary
 
@@ -214,70 +221,87 @@ def get_characters_for_prompt(
     return result
 
 
-def load_and_format_world_specs(world_path: Path) -> Optional[str]:
+def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
     """
-    Load world specs and format as prompt section.
-
+    Load world specs from the new directory structure (Issue #4) and format as prompt section.
+    
     Returns:
         Formatted prompt section or None if no world specs
     """
-    if not world_path.exists():
+    world_dir = paths.get('world')
+    if not world_dir or not world_dir.exists():
         return None
-
-    world_data = load_yaml(world_path)
-    if not world_data:
-        return None
-
-    # Get specs - prefer full, fall back to core
-    specs = world_data.get('full', {})
-    core = world_data.get('core', {})
-
-    # Merge: use full if available, otherwise core
-    merged = {}
-    for key in ['background', 'factions', 'history', 'entities', 'rules', 'locations']:
-        full_spec = specs.get(key, {})
-        core_spec = core.get(key, {})
-        if full_spec:
-            merged[key] = full_spec
-        elif core_spec:
-            merged[key] = core_spec
-
-    # If nothing to show, return None
-    if not any(merged.values()):
-        return None
-
-    # Build the prompt section
+    
     section = "## 🌍 世界观设定（必读）\n\n"
-
-    # Title mapping
+    has_content = False
+    
+    # Title mapping for display
     titles = {
-        'background': '世界背景',
+        'basic': '世界背景',
         'factions': '阵营/势力',
         'history': '关键历史',
-        'entities': '特殊存在',
-        'rules': '世界规则',
+        'powers': '能力体系',
+        'organizations': '组织',
         'locations': '重要地点',
     }
-
-    for key, title in titles.items():
-        spec = merged.get(key, {})
-        if spec:
-            section += f"### {title}\n"
-            # Format as bullet points
-            if isinstance(spec, dict):
-                for k, v in spec.items():
-                    if v:
-                        section += f"- {k}: {v}\n"
-            elif isinstance(spec, list):
-                for item in spec:
-                    section += f"- {item}\n"
-            else:
-                section += f"{spec}\n"
+    
+    # 1. Load basic world settings
+    basic_path = world_dir / 'basic.yaml'
+    if basic_path.exists():
+        basic_data = load_yaml(basic_path)
+        if basic_data:
+            section += f"### {titles['basic']}\n"
+            for key, value in basic_data.items():
+                if key not in ['updated_at', 'created_at'] and value:
+                    section += f"- {key}: {value}\n"
             section += "\n"
-
+            has_content = True
+    
+    # 2. Load timeline
+    timeline_path = world_dir / 'timeline.yaml'
+    if timeline_path.exists():
+        timeline_data = load_yaml(timeline_path)
+        if timeline_data:
+            section += "### 时间线\n"
+            for key, value in timeline_data.items():
+                if key not in ['updated_at', 'created_at'] and value:
+                    section += f"- {key}: {value}\n"
+            section += "\n"
+            has_content = True
+    
+    # 3. Load multi-file types
+    multi_file_types = [
+        ('factions', paths.get('world_factions')),
+        ('history', paths.get('world_history')),
+        ('powers', paths.get('world_powers')),
+        ('organizations', paths.get('world_organizations')),
+        ('locations', paths.get('world_locations')),
+    ]
+    
+    for type_name, dir_path in multi_file_types:
+        if dir_path and dir_path.exists():
+            files = list(dir_path.glob('*.yaml'))
+            if files:
+                section += f"### {titles[type_name]}\n"
+                for f in files:
+                    data = load_yaml(f)
+                    if data:
+                        name = data.get('name', f.stem)
+                        # Only include if revealed by current chapter
+                        # TODO: Add reveal_stage filtering based on current chapter
+                        section += f"- **{name}**:\n"
+                        for key, value in data.items():
+                            if key not in ['name', 'updated_at', 'created_at', 'reveal_stage'] and value:
+                                section += f"  - {key}: {value}\n"
+                section += "\n"
+                has_content = True
+    
+    if not has_content:
+        return None
+    
     section += "⚠️  要求：本章内容必须严格遵守以上世界观设定！\n\n"
     section += "═══════════════════════════════════════════════════════════════\n\n"
-
+    
     return section
 
 
@@ -369,7 +393,7 @@ def build_writing_prompt(
     prompt += "═══════════════════════════════════════════════════════════════\n\n"
 
     # ========== WORLD FRAMEWORK ==========
-    world_section = load_and_format_world_specs(paths['world'])
+    world_section = load_and_format_world_specs(paths)
     if world_section:
         prompt += world_section
 

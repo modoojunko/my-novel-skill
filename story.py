@@ -9,7 +9,7 @@ from pathlib import Path
 # Add src_v2 to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src_v2 import init, paths, status, collect, plan, write, archive, export
+from src_v2 import init, paths, status, collect, plan, write, archive, export, world
 
 
 def show_help():
@@ -20,6 +20,7 @@ Commands:
   init        Initialize new project
   status      Show project status
   collect     Collect information (core, protagonist, etc.)
+  world       Manage world building (basic, faction, history, power, etc.)
   plan        Plan outline (volume, chapter)
   write       Generate chapter prompt / write
   archive     Archive completed chapter
@@ -51,6 +52,7 @@ def main():
         'init': init,
         'status': status,
         'collect': collect,
+        'world': world,
         'plan': plan,
         'write': write,
         'archive': archive,

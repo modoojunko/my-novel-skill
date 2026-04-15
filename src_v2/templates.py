@@ -216,13 +216,22 @@ def ensure_default_templates(templates_dir: Path) -> None:
     chapter_expand = expand_dir / 'chapter.yaml'
     if not chapter_expand.exists():
         chapter_expand.write_text("""template: |
-  # 章节大纲扩写任务
+  # 章节大纲扩写任务 (避免重复 - Issue #6)
 
   ## 用户提供的核心信息
   {user_answers}
 
+  ## 重要：避免重复指导
+  - summary 和 key_scenes 必须有明显区分：
+    * summary: 高层次概述，聚焦于情节发展和人物弧光
+    * key_scenes: 具体的场景列表，每个场景聚焦于某个关键时刻或对话
+
   ## 任务
-  基于以上信息，生成完整的章节大纲。
+  基于以上信息，生成完整的章节大纲，包含：
+  1. chapter_info（章节基本信息）
+  2. summary（300-500字的高层次概述：情节发展、人物弧光、情感节奏）
+  3. key_scenes（场景列表，每个场景包含：地点、POV、关键动作/对话、情感点）
+  
   请直接返回 YAML 格式。
 """, encoding='utf-8')
 

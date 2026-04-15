@@ -41,7 +41,7 @@ def get_project_status_dict(root: Path, config: dict, paths: dict) -> dict:
         "title": book.get('title', 'Untitled'),
         "basic_info": {
             "genre": book.get('genre', 'Unknown'),
-            "target_words": book.get('target_words', 0),
+            "target_words": int(book.get('target_words') or 0),
             "volumes": structure.get('volumes', 0),
             "chapters_per_volume": structure.get('chapters_per_volume', 30),
         },
@@ -76,7 +76,7 @@ def show_status_interactive(root: Path, config: dict, paths: dict):
 
     cli.print_out(f"  {cli.c('Basic Info:', cli.Colors.BOLD)}")
     cli.print_out(f"    Genre: {book.get('genre', 'Unknown')}")
-    cli.print_out(f"    Target: {book.get('target_words', 0):,} words")
+    cli.print_out(f\"    Target: {int(book.get('target_words') or 0):,} words\")
     cli.print_out(f"    Volumes: {structure.get('volumes', 0)}")
     cli.print_out(f"    Chapters/Volume: {structure.get('chapters_per_volume', 30)}")
 
