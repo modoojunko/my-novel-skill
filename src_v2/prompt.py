@@ -89,29 +89,78 @@ def summarize_volume_outline(volume: Dict[str, Any], level: str = 'full') -> str
     return summary
 
 
+def smart_truncate(text: str, max_length: int, suffix: str = "...") -> str:
+    """Truncate text smartly, trying to keep sentence boundaries if possible."""
+    if not text or len(text) <= max_length:
+        return text
+
+    # Try to truncate at a sentence break
+    truncated = text[:max_length]
+    last_period = truncated.rfind('。')
+    last_exclamation = truncated.rfind('！')
+    last_question = truncated.rfind('？')
+
+    cut_pos = max(last_period, last_exclamation, last_question)
+    if cut_pos > max_length * 0.5:  # Only use if it's not too early
+        return truncated[:cut_pos + 1]
+
+    # Otherwise, just truncate at the max length
+    return truncated[:max_length - len(suffix)] + suffix
+
+
 def summarize_chapter_outline(chapter: Dict[str, Any], level: str = 'full') -> str:
-    """Summarize chapter outline at different levels"""
-    if level == 'full':
-        import json
-        return json.dumps(chapter, ensure_ascii=False, indent=2)
+    """
+    Summarize chapter outline at different levels with smart truncation.
 
+    Levels:
+    - full: All content, but with smart truncation to avoid overwhelming prompts
+    - core: Only essential information
+    - minimal: Bare minimum (for older chapters)
+    """
     info = chapter.get('chapter_info', {})
-    summary = f"Chapter {info.get('number', '')}: {info.get('title', '')}\n"
-    summary += f"POV: {info.get('pov', '')}\n"
+    result = f"Chapter {info.get('number', '')}: {info.get('title', '')}\n"
 
-    if level == 'core':
+    pov = info.get('pov', '')
+    if pov:
+        result += f"POV: {pov}\n"
+
+    # Get config for max lengths (or use defaults)
+    max_summary_length = 500
+    max_scene_length = 200
+    max_scenes = 10
+
+    if level == 'minimal':
+        max_summary_length = 200
+        max_scene_length = 100
+        max_scenes = 5
+
+    # Add summary if available
+    if level in ['core', 'full']:
         summary_text = chapter.get('summary', '') or chapter.get('brief_summary', '')
         if summary_text:
-            summary += f"Summary: {summary_text}\n"
-    
+            truncated_summary = smart_truncate(summary_text, max_summary_length)
+            result += f"\nSummary:\n{truncated_summary}\n"
+
     # Add key_scenes if available
     key_scenes = chapter.get('key_scenes', [])
     if key_scenes and level in ['core', 'full']:
-        summary += "Key Scenes:\n"
-        for i, scene in enumerate(key_scenes, 1):
-            summary += f"  {i}. {scene}\n"
+        result += "\nKey Scenes:\n"
+        # Limit number of scenes and truncate each
+        for i, scene in enumerate(key_scenes[:max_scenes], 1):
+            truncated_scene = smart_truncate(scene, max_scene_length)
+            result += f"  {i}. {truncated_scene}\n"
 
-    return summary
+        if len(key_scenes) > max_scenes:
+            result += f"  ... (and {len(key_scenes) - max_scenes} more scenes)\n"
+
+    # Add chapter objectives/tasks if available
+    objectives = chapter.get('objectives', []) or chapter.get('tasks', [])
+    if objectives and level in ['core', 'full']:
+        result += "\nChapter Objectives:\n"
+        for i, obj in enumerate(objectives[:5], 1):
+            result += f"  {i}. {obj}\n"
+
+    return result
 
 
 def summarize_snapshots(snapshots_dir: Path, chapter_num: int, max_recent: int = 3) -> List[Dict[str, Any]]:
@@ -321,6 +370,13 @@ def build_writing_prompt(
     """
     prompt = f"# 第{chapter_num}章写作任务\n\n"
 
+    # ========== MANDATORY REQUIREMENTS ==========
+    prompt += "## 写作要求（必须遵守）\n"
+    prompt += "1. 严格按照本章大纲和关键场景写作，不要自由发挥\n"
+    prompt += "2. 遵守 POV 角色认知约束，不要写其不知道的信息\n"
+    prompt += "3. 不要添加提示词中未提及的新情节、新角色、新设定\n"
+    prompt += "4. 只输出正文，不要任何说明、标记等过程文字\n\n"
+
     # ========== GLOBAL WRITING REQUIREMENTS (MUST READ FIRST) ==========
     prompt += "═══════════════════════════════════════════════════════════════\n"
     prompt += "  【全局写作要求 - 必须严格遵守】\n"
@@ -458,10 +514,10 @@ def build_writing_prompt(
 
             prompt += anti_repeat_section
 
-    # ========== L0: Chapter info (MUST HAVE - complete) ==========
+    # ========== L0: Chapter info (MUST HAVE - smart summary) ==========
     chapter = load_chapter_outline(paths['outline'], volume_num, chapter_num)
     if chapter:
-        prompt += "## [L0] 本章信息（必须完整）\n"
+        prompt += "## [L0] 本章信息（必须）\n"
         prompt += summarize_chapter_outline(chapter, 'full')
         prompt += "\n\n"
 
@@ -471,6 +527,9 @@ def build_writing_prompt(
         prompt += "## [L1] 本卷信息（必须完整）\n"
         prompt += summarize_volume_outline(volume, 'full')
         prompt += "\n\n"
+
+    # Final reminder
+    prompt += "现在开始写第 {} 章正文，直接从正文第一句开始写。\n".format(chapter_num)
 
     return prompt
 
