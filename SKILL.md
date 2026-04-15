@@ -21,6 +21,8 @@ description: 所有小说创作相关操作必须通过此 skill 处理，包括
 
 ### ④ 完成判断 — 对照定义的创作阶段目标，确认目标达成后才停止，但也不要过度操作，不为了"完美"而增加用户负担。
 
+### ⑤ 命令执行规范 — **所有命令必须使用 `--non-interactive --json` 模式！** 绝对不要使用交互模式，否则会导致 Agent 自己按流程创建文件，内容跑偏。通过 JSON 模式获取结构化输出，便于解析结果。
+
 ## 📖 项目架构与核心特点
 
 **本项目使用 v2 简化架构：**
@@ -35,6 +37,70 @@ description: 所有小说创作相关操作必须通过此 skill 处理，包括
 5. **多平台发布**：支持发布章节到飞书文档等平台
 
 **基本流程模式：AI 问核心 → AI 扩写 → 用户确认**
+
+## ⚠️ 命令使用规范（重要！）
+
+**所有命令必须使用 `--non-interactive --json` 模式！**
+
+### 为什么必须使用非交互模式
+
+- ✅ **避免 Agent 自己按流程创建文件**：交互模式会让 Agent 模拟用户输入，导致内容跑偏
+- ✅ **结构化输出**：JSON 模式提供机器可读的输出，便于 Agent 解析结果
+- ✅ **一致性**：所有操作通过参数传递，行为可预测
+
+### 正确的命令格式
+
+**查看状态：**
+```bash
+story status --non-interactive --json
+```
+
+**初始化项目：**
+```bash
+story init --non-interactive --json --args '{"title":"我的小说","genre":"玄幻","words":500000,"volumes":3}'
+```
+
+**收集信息：**
+```bash
+story collect core --non-interactive --json --args '{"title":"小说标题","genre":"玄幻","description":"小说描述"}'
+```
+
+**规划卷纲：**
+```bash
+story plan volume 1 --non-interactive --json
+```
+
+**生成提示词：**
+```bash
+story write 1 --prompt --non-interactive --json
+```
+
+**归档章节：**
+```bash
+story archive 1 --non-interactive --json
+```
+
+**发布章节：**
+```bash
+story publish 1 feishu --non-interactive --json
+```
+
+**查看发布状态：**
+```bash
+story publish status --non-interactive --json
+```
+
+### 绝对禁止的做法
+
+❌ **不要使用交互模式**：
+```bash
+story collect core          # ❌ 错误！Agent 会模拟输入
+```
+
+❌ **不要省略模式参数**：
+```bash
+story status                # ❌ 错误！默认是交互模式
+```
 
 ### 整体流程
 
