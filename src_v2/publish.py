@@ -280,22 +280,84 @@ def main():
         show_publish_help()
         return
 
-    # Parse CLI arguments
-    import argparse
-    parser = argparse.ArgumentParser(add_help=False)
-    args, extra_args = cli.parse_cli_args(parser)
-
-    # Now process our commands
-    if not extra_args:
+    # Check for help first
+    if sys.argv[1] in ('help', '--help', '-h'):
         show_publish_help()
         return
 
-    target = extra_args[0].lower()
+    # First, extract --json, --non-interactive, --args from anywhere in args
+    # and set cli module's global state manually
+    json_mode = '--json' in sys.argv
+    non_interactive = '--non-interactive' in sys.argv
 
-    # Check for help
-    if target in ('help', '--help', '-h'):
+    # Find and parse --args if present
+    args_dict = {}
+    if '--args' in sys.argv:
+        args_idx = sys.argv.index('--args')
+        if args_idx + 1 < len(sys.argv):
+            try:
+                import json
+                args_dict = json.loads(sys.argv[args_idx + 1])
+            except json.JSONDecodeError:
+                pass
+
+    # Set cli module's global state manually
+    cli._json_mode = json_mode
+    cli._non_interactive = non_interactive
+    cli._args = args_dict
+
+    # Now filter out the global options and process subcommand
+    filtered_args = []
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg in ('--json', '--non-interactive'):
+            i += 1
+        elif arg == '--args':
+            i += 2
+        else:
+            filtered_args.append(arg)
+            i += 1
+
+    if not filtered_args:
         show_publish_help()
         return
+
+    target = filtered_args[0].lower()
+
+    # Find project root
+    root = find_project_root()
+    if not root:
+        cli.print_out("  Error: Not in a novel project (no story.yaml/story.json)")
+        cli.print_out("  Run 'story init' first")
+        return
+
+    config = load_config(root)
+    paths = load_project_paths(root)
+
+    # Parse options
+    force = '--force' in sys.argv
+
+    # Handle status command
+    if target == 'status':
+        show_publishing_status(config, paths, filtered_args[1:])
+        return
+
+    # Handle check command
+    if target == 'check':
+        if len(filtered_args) < 2:
+            show_publish_help()
+            return
+        platform = filtered_args[1]
+        check_platform(platform, root, config, paths)
+        return
+
+    # Handle publish commands
+    if len(filtered_args) < 2:
+        show_publish_help()
+        return
+
+    platform = filtered_args[1]
 
     # Find project root
     root = find_project_root()
@@ -388,7 +450,7 @@ def main():
         show_publish_help()
 
 
-def show_publishing_status(config: Dict[str, Any], paths: Dict[str, Any], extra_args: List[str]):
+def show_publishing_status(config: Dict[str, Any], paths: Dict[str, Any], filtered_args: List[str]):
     """显示发布状态"""
     publishing = get_publishing_config(config)
     chapters = publishing.get('chapters', {})
@@ -401,7 +463,7 @@ def show_publishing_status(config: Dict[str, Any], paths: Dict[str, Any], extra_
     # Filter by chapter or platform if specified
     filter_chapter = None
     filter_platform = None
-    for arg in extra_args:
+    for arg in filtered_args:
         if arg.isdigit():
             filter_chapter = int(arg)
         else:
