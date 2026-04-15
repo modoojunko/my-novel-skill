@@ -1,8 +1,115 @@
-# my-novel-v2 - AI 辅助小说写作工作流
+# AI 辅助小说写作工作流
 
-> 简化版 AI 辅助小说写作工具：主 Agent 管流程 + 子 Agent 写正文
+> 告诉 Agent "我想写小说"，把仓库 URL 丢给它，剩下的交给它。
 
-## 核心特性
+---
+
+## 🤖 给 Agent 的指令（重要！）
+
+这是 my-novel-skill 仓库，一个 AI 辅助小说写作工作流。
+
+**当用户提到以下内容时，请使用此 Skill：**
+- "写小说"、"创建小说项目"、"小说大纲"
+- "主角"、"角色"、"世界观"
+- "第X章"、"卷大纲"、"章节大纲"
+- "story.yaml"、"process/"、"output/"
+- 任何小说创作相关的操作
+
+**使用规范：**
+1. 所有操作通过 `python story.py <command>` 命令进行
+2. **必须使用** `--non-interactive --json` 模式
+3. 不要让用户直接运行命令，由你来运行命令并解释结果
+4. 先运行 `story status` 查看当前项目状态
+5. 用自然语言与用户对话，不要展示命令行输出
+
+**命令格式示例：**
+```bash
+# 查看状态
+python story.py status --non-interactive --json
+
+# 初始化项目
+python story.py init --non-interactive --json --args '{"title":"小说标题","genre":"玄幻","words":500000,"volumes":3}'
+```
+
+---
+
+## 👤 给作者的指南
+
+### 你可以这样开始...
+
+✨ "我想写一部玄幻小说"
+✨ "帮我创建一个主角"
+✨ "我想规划第一卷的大纲"
+✨ "生成第一章的提示词"
+✨ "帮我看看当前进度"
+✨ "把已完成的章节发布到飞书"
+✨ "我要继续写第 3 章"
+
+### 这个 Skill 能帮你做什么
+
+| 功能 | 描述 |
+|------|------|
+| 📝 项目管理 | 初始化项目、查看写作进度 |
+| 🎭 角色创建 | 主角、配角，完整的六层认知模型 |
+| 🌍 世界观设定 | 势力、历史、力量体系、组织、地点 |
+| 📋 大纲规划 | 卷纲、章节纲，写一卷规划一卷 |
+| ✍️ 写作辅助 | 生成章节提示词、验证章节内容 |
+| 📦 定稿归档 | 管理已完成章节 |
+| 🚀 多平台发布 | 飞书文档等平台一键发布 |
+
+---
+
+## 💬 示例对话
+
+### 场景 1：从零开始写小说
+
+```
+作者：我想写一部玄幻小说，关于一个少年逆袭的故事
+
+Agent：好的！让我先帮你设置一下...
+      
+      你的小说叫什么名字？大概想写多长？
+
+作者：叫《九天神帝》吧，大概写 50 万字，分 3 卷
+
+Agent：明白了！让我先收集一些核心信息...
+      这是一个什么样的故事？主角是谁？
+```
+
+### 场景 2：继续写已有项目
+
+```
+作者：帮我看看我小说写到哪儿了
+
+Agent：好的，让我查看一下当前进度...
+      
+      你目前写到第一卷第 3 章，卷纲已完成，第 3 章提示词已生成。
+      要继续写第 3 章吗？
+
+作者：对，帮我生成第 3 章的提示词
+
+Agent：没问题，这就生成...
+```
+
+### 场景 3：发布章节
+
+```
+作者：我想把已完成的章节发布到飞书
+
+Agent：好的，让我先看看哪些章节已归档...
+      
+      你有 3 章已归档可以发布。要发布指定章节还是全部？
+
+作者：全部发布吧
+
+Agent：没问题，这就发布...
+```
+
+---
+
+## 🔧 技术细节（给好奇的人）
+
+### 核心特性
 
 - ✅ **主 Agent + 子 Agent 架构** - 职责分离，避免"忘事"
 - ✅ **三目录设计** - process/output 清晰分离
@@ -17,19 +124,23 @@
 - ✅ **章节验证** - 确保章节符合大纲要求
 - ✅ **多平台发布** - 支持发布到飞书文档等平台
 
-## 快速开始
+### 作为 Claude Skill 使用
 
-### 安装
+本项目设计为 Claude Code / WorkBuddy 的 skill。安装后，当你提到"写小说"、"小说大纲"等关键词时，skill 会自动激活。
+
+### 命令行使用（给开发者）
+
+如果你想直接使用命令行：
 
 ```bash
 # 克隆项目
-git clone <repository-url> my-novel-v2
-cd my-novel-v2
+git clone <repository-url> my-novel-skill
+cd my-novel-skill
 
 # 无需 pip install，仅需 Python 3.8+
 ```
 
-### 创建你的第一部小说
+**创建你的第一部小说：**
 
 ```bash
 # 1. 创建项目目录
@@ -37,25 +148,13 @@ mkdir my-first-novel
 cd my-first-novel
 
 # 2. 初始化项目
-python /path/to/my-novel-v2/story.py init
+python /path/to/my-novel-skill/story.py init --non-interactive --json --args '{"title":"我的小说","genre":"玄幻","words":500000,"volumes":3}'
 
-# 3. 收集核心信息
-python /path/to/my-novel-v2/story.py collect core
-
-# 4. 创建主角
-python /path/to/my-novel-v2/story.py collect protagonist
-
-# 5. 设定世界观（可选）
-python /path/to/my-novel-v2/story.py world basic
-
-# 6. 规划第一卷
-python /path/to/my-novel-v2/story.py plan volume 1
-
-# 7. 生成第一章提示词
-python /path/to/my-novel-v2/story.py write 1 --prompt
+# 3. 查看状态
+python /path/to/my-novel-skill/story.py status --non-interactive --json
 ```
 
-## 完整命令列表
+### 完整命令列表
 
 | 命令 | 功能 |
 |------|------|
@@ -83,7 +182,7 @@ python /path/to/my-novel-v2/story.py write 1 --prompt
 | `story publish all <platform>` | 发布所有未发布章节 |
 | `story github <subcommand>` | GitHub Issue 管理 |
 
-## 多平台发布
+### 多平台发布
 
 支持将已归档章节发布到多个平台：
 
@@ -106,7 +205,7 @@ story publish status
 - 知乎 (zhihu) - 预留
 - 起点 (qidian) - 预留
 
-## 项目结构
+### 项目结构
 
 ```
 你的小说项目/
@@ -137,14 +236,14 @@ story publish status
     └── ARCHIVE/                  # 已归档章节
 ```
 
-## 核心设计理念
+### 核心设计理念
 
-### 1. 主 Agent + 子 Agent 分离
+#### 1. 主 Agent + 子 Agent 分离
 
 - **主 Agent**：与用户对话，收集信息，管理进度，生成提示词
 - **子 Agent**：只根据完整提示词写正文，不记忆之前的对话
 
-### 2. 提示词分层摘要
+#### 2. 提示词分层摘要
 
 为了避免提示词过长被截断，采用四层优先级：
 
@@ -153,7 +252,7 @@ story publish status
 - **L2（有用）**：其他配角、前 4-10 章极简摘要
 - **L3（可选）**：更早章节、世界观细节（按需加载）
 
-### 3. 角色六层认知模型
+#### 3. 角色六层认知模型
 
 每个主角/主角团都有完整的六层认知：
 
@@ -164,15 +263,11 @@ story publish status
 5. **技能** - 后天学习的技能
 6. **环境** - 角色当前所处环境
 
-### 4. 写一卷规划一卷
+#### 4. 写一卷规划一卷
 
 不用一开始就想完整本书，先写好第一卷，再规划第二卷。
 
-## 作为 Claude Skill 使用
-
-本项目设计为 Claude Code / WorkBuddy 的 skill。安装后，当你提到"写小说"、"小说大纲"等关键词时，skill 会自动激活。
-
-## 与 v1 的区别
+### 与 v1 的区别
 
 my-novel-v2 是对原 my-novel-skill 的完全重写：
 
@@ -188,7 +283,7 @@ my-novel-v2 是对原 my-novel-skill 的完全重写：
 | 验证 | 无 | 章节验证 |
 | 发布 | 无 | 多平台发布 |
 
-## 开发
+### 开发
 
 ```bash
 # 运行测试
@@ -198,6 +293,6 @@ python -c "from src_v2 import paths, init, status; print('OK')"
 python story.py --help
 ```
 
-## 许可证
+### 许可证
 
 MIT License
