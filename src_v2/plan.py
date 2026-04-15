@@ -14,6 +14,7 @@ from .outline import (
     load_volume_outline, save_volume_outline,
     load_chapter_outline, save_chapter_outline,
 )
+from .timeline import collect_timeline_for_volume
 
 
 class Colors:
@@ -37,7 +38,7 @@ def input_with_default(prompt: str, default: str = "") -> str:
     return user_input if user_input else default
 
 
-def plan_volume(volume_num: int, paths: dict, config: dict):
+def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = False, non_interactive: bool = False):
     """Interactive volume planning"""
     print(f"\n{c('═' * 60, Colors.CYAN)}")
     print(f"  {c(f'[PLAN] Volume {volume_num}', Colors.BOLD)}")
@@ -88,6 +89,10 @@ def plan_volume(volume_num: int, paths: dict, config: dict):
             outline = add_chapter_to_volume(outline, i, ch_title, ch_pov)
             i += 1
 
+    # Collect timeline
+    if not no_timeline:
+        outline = collect_timeline_for_volume(outline, non_interactive)
+
     # Save
     save_volume_outline(outline_dir, volume_num, outline)
     print(f"\n  {c('✓ Volume outline saved!', Colors.GREEN)}")
@@ -132,7 +137,7 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
 
     # Create outline
     outline = create_chapter_outline(chapter_num, volume_num, title, pov)
-    outline['brief_summary'] = input_with_default("Brief summary", "")
+    outline['summary'] = input_with_default("Chapter summary (high-level overview: plot progression, character arcs)", "")
 
     # Save
     save_chapter_outline(outline_dir, volume_num, chapter_num, outline)
@@ -149,6 +154,7 @@ Targets:
 
 Examples:
   story plan volume 1
+  story plan volume 1 --no-timeline
   story plan chapter 1 5
 """)
 
@@ -158,7 +164,35 @@ def main():
         show_plan_help()
         return
 
-    target = sys.argv[1].lower()
+    # Parse options
+    target = None
+    volume_num = None
+    chapter_num = None
+    no_timeline = False
+    non_interactive = False
+
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == '--no-timeline':
+            no_timeline = True
+        elif arg == '--non-interactive':
+            non_interactive = True
+        elif arg in ('help', '--help', '-h'):
+            show_plan_help()
+            return
+        elif arg.isdigit():
+            if volume_num is None:
+                volume_num = int(arg)
+            else:
+                chapter_num = int(arg)
+        elif not target:
+            target = arg.lower()
+        i += 1
+
+    if not target:
+        show_plan_help()
+        return
 
     root = find_project_root()
     if not root:
@@ -171,21 +205,18 @@ def main():
     ensure_default_templates(paths['templates'])
 
     if target == 'volume':
-        if len(sys.argv) < 3:
+        if volume_num is None:
             print("  Usage: story plan volume <number>")
             return
         try:
-            volume_num = int(sys.argv[2])
-            plan_volume(volume_num, paths, config)
+            plan_volume(volume_num, paths, config, no_timeline, non_interactive)
         except ValueError:
             print("  Error: Volume number must be an integer")
     elif target == 'chapter':
-        if len(sys.argv) < 4:
+        if volume_num is None or chapter_num is None:
             print("  Usage: story plan chapter <volume> <number>")
             return
         try:
-            volume_num = int(sys.argv[2])
-            chapter_num = int(sys.argv[3])
             plan_chapter(volume_num, chapter_num, paths)
         except ValueError:
             print("  Error: Volume and chapter numbers must be integers")

@@ -216,13 +216,22 @@ def ensure_default_templates(templates_dir: Path) -> None:
     chapter_expand = expand_dir / 'chapter.yaml'
     if not chapter_expand.exists():
         chapter_expand.write_text("""template: |
-  # 章节大纲扩写任务
+  # 章节大纲扩写任务 (避免重复 - Issue #6)
 
   ## 用户提供的核心信息
   {user_answers}
 
+  ## 重要：避免重复指导
+  - summary 和 key_scenes 必须有明显区分：
+    * summary: 高层次概述，聚焦于情节发展和人物弧光
+    * key_scenes: 具体的场景列表，每个场景聚焦于某个关键时刻或对话
+
   ## 任务
-  基于以上信息，生成完整的章节大纲。
+  基于以上信息，生成完整的章节大纲，包含：
+  1. chapter_info（章节基本信息）
+  2. summary（300-500字的高层次概述：情节发展、人物弧光、情感节奏）
+  3. key_scenes（场景列表，每个场景包含：地点、POV、关键动作/对话、情感点）
+  
   请直接返回 YAML 格式。
 """, encoding='utf-8')
 
@@ -237,6 +246,66 @@ def ensure_default_templates(templates_dir: Path) -> None:
 
   ## 任务
   根据以上大纲写正文。
+""", encoding='utf-8')
+
+    # World collect template
+    world_collect = collect_dir / 'world.yaml'
+    if not world_collect.exists():
+        world_collect.write_text("""questions:
+  # Background
+  - key: background_time
+    question: "世界的时间设定？（如：202X年现代、古代、未来、架空等）"
+  - key: background_location
+    question: "主要地点/区域？"
+  - key: background_technology
+    question: "科技/魔法水平？"
+  - key: background_overview
+    question: "世界背景概述？"
+
+  # Factions
+  - key: factions_main
+    question: "有哪些主要阵营/势力？"
+
+  # History
+  - key: history_key_events
+    question: "有哪些关键历史事件？"
+
+  # Entities
+  - key: entities_special
+    question: "有哪些特殊存在/生物/种族？"
+
+  # Rules
+  - key: rules_world
+    question: "世界有什么特殊规则？"
+
+  # Locations
+  - key: locations_important
+    question: "有哪些重要地点？"
+""", encoding='utf-8')
+
+    # World expand template
+    world_expand = expand_dir / 'world.yaml'
+    if not world_expand.exists():
+        world_expand.write_text("""template: |
+  # 世界观设定扩写任务
+
+  ## 用户提供的核心信息
+  {user_answers}
+
+  ## 写作风格
+  - 基调：{style_tone}
+  - 节奏：{style_pacing}
+
+  ## 任务
+  基于以上信息，生成完整的世界观设定，包括：
+  1. background（详细的世界背景）
+  2. factions（详细的阵营/势力设定）
+  3. history（详细的历史/时间线）
+  4. entities（详细的特殊存在设定）
+  5. rules（详细的世界规则）
+  6. locations（详细的重要地点）
+
+  请直接返回 YAML 格式。
 """, encoding='utf-8')
 
 

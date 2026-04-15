@@ -73,7 +73,12 @@ def create_volume_outline(volume_num: int, title: str, theme: str = "") -> Dict[
 
 
 def create_chapter_outline(chapter_num: int, volume_num: int, title: str, pov: str = "") -> Dict[str, Any]:
-    """Create a new chapter outline structure"""
+    """Create a new chapter outline structure
+    
+    Structure designed to avoid repetition (Issue #6):
+    - summary: High-level overview, focusing on plot progression and character arcs
+    - key_scenes: Specific scene-by-scene breakdown, each focusing on a particular moment
+    """
     return {
         'chapter_info': {
             'number': chapter_num,
@@ -83,7 +88,8 @@ def create_chapter_outline(chapter_num: int, volume_num: int, title: str, pov: s
             'target_words': 3000,
             'tone': 'neutral',
         },
-        'brief_summary': '',
+        'summary': '',  # High-level overview: plot progression, character arcs, emotional beats
+        'key_scenes': [],  # Specific scenes: each with location, POV, key action/dialogue
         'scene_list': [],
         'plot_beats': [],
         'foreshadowing': [],
