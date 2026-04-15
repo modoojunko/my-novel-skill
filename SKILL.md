@@ -384,3 +384,40 @@ story github feature \
 - 告知用户可以随时查看或更新 issue
 
 **注意：** Issue 内容应只关于 my-novel-skill 工具本身，不要包含具体小说内容、剧情设定等信息。
+
+## 🌐 多平台兼容性
+
+### Claude Code 环境
+- ✅ 原生支持 Claude Code / WorkBuddy 环境
+- ✅ Skill 自动触发机制已优化
+- ✅ 所有命令和流程完整支持
+
+### Hermes Agent 环境
+本 skill 设计为与 Hermes Agent 环境兼容：
+
+**兼容性设计原则：**
+1. **零依赖设计** - 仅使用 Python 标准库，不依赖特定平台
+2. **标准 YAML/JSON 格式** - 数据格式跨平台通用
+3. **统一 CLI 接口** - 所有命令使用标准 `--non-interactive --json` 模式
+4. **文件系统抽象** - 使用 Python `pathlib`，兼容不同操作系统
+
+**Hermes Agent 环境使用建议：**
+- 确保 Python 3.8+ 可用
+- 使用 `--non-interactive --json` 模式执行所有命令
+- 技能元数据（frontmatter）符合标准 skill 格式
+- 文件操作通过 skill 命令进行，避免直接操作文件
+
+**技能识别：**
+- Skill name: `my-novel-v2`
+- 触发关键词已扩展，支持多种平台的技能识别机制
+- 前 10 行包含完整的技能描述和使用指南
+
+**平台特定配置（如需要）：**
+可在项目根目录创建 `.novel-env` 文件来指定运行环境：
+```yaml
+platform: hermes
+auto_load: true
+```
+
+### 其他 AI 助手环境
+由于采用标准设计，本 skill 理论上可适配任何支持 Python 脚本执行和文件操作的 AI 助手环境。
