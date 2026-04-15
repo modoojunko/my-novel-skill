@@ -1,23 +1,24 @@
 ---
 name: my-novel-v2
-description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节"、"大纲"、"卷管理"、"归档章节"、"小说进度"，或对已初始化的 novel-workflow v2 项目执行任何操作（查看状态、编辑大纲、写作、归档等）。
+description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节"、"大纲"、"卷管理"、"归档章节"、"小说进度"、"世界观"、"发布"，或对已初始化的 novel-workflow v2 项目执行任何操作（查看状态、编辑大纲、写作、归档、发布等）。
 ---
 
 # my-novel-v2 -- AI 辅助小说写作工作流（简化版）
 
-> 主 Agent 管流程 + 子 Agent 写正文。两目录设计 + 全 YAML 数据格式 + 智能提示词分层摘要 + 角色六层认知模型。
+> 主 Agent 管流程 + 子 Agent 写正文。三目录设计 + 全 YAML 数据格式 + 智能提示词分层摘要 + 角色六层认知模型 + 多平台发布。
 
 ## 📖 Agent 操作指南
 
 **本项目使用 v2 简化架构，核心特点：**
 
 1. **主 Agent + 子 Agent 分离**：主 Agent 负责收集信息和生成提示词，子 Agent 负责写正文
-2. **两目录设计**：
+2. **三目录设计**：
    - `project_root`: story.yaml（配置文件）
    - `process/`: 过程管理产物（INFO, OUTLINE, PROMPTS, TEMPLATES）
    - `output/`: 最终正文（CONTENT, EXPORT, ARCHIVE）
 3. **零依赖**：仅使用 Python 标准库，yaml 可选（json 自动降级）
 4. **写一卷规划一卷**：渐进式创作，避免前期负担过重
+5. **多平台发布**：支持发布章节到飞书文档等平台
 
 ## 核心理念
 
@@ -30,15 +31,21 @@ description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节
 1. init —— 创建项目
 2. collect core —— 收集小说核心信息
 3. collect protagonist —— 创建主角
+4. world basic —— 设定世界观基础
 
 【第二阶段：第 N 卷规划（每卷开始前做）】
-4. plan volume N —— 规划第 N 卷
-5. plan chapter N M —— 规划第 M 章
+5. plan volume N —— 规划第 N 卷
+6. plan chapter N M —— 规划第 M 章
 
 【第三阶段：每章写作（循环）】
-6. write M --prompt —— 生成第 M 章提示词
-7. 子 Agent 写正文
-8. archive M —— 归档第 M 章
+7. write M --prompt —— 生成第 M 章提示词
+8. 子 Agent 写正文
+9. verify M —— 验证章节是否符合大纲
+10. archive M —— 归档第 M 章
+
+【第四阶段：发布（可选）】
+11. publish M feishu —— 发布第 M 章到飞书
+12. publish status —— 查看发布状态
 ```
 
 ## 命令参考（v2）
@@ -48,12 +55,15 @@ description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节
 | `story init` | 初始化新项目 |
 | `story status` | 查看项目状态 |
 | `story collect <target>` | 收集信息（core, protagonist, volume <num>） |
+| `story world <target>` | 世界观管理（basic, faction, history, power, organization, location, list） |
 | `story plan volume <num>` | 规划卷大纲 |
 | `story plan chapter <vol> <num>` | 规划章节大纲 |
 | `story write <num> --prompt` | 生成章节提示词 |
+| `story verify <num>` | 验证章节是否符合大纲 |
 | `story archive <num>` | 归档已完成章节 |
 | `story export` | 导出小说 |
 | `story github <subcommand>` | GitHub Issue 管理 |
+| `story publish <target> <platform>` | 发布章节到平台（check, status, <chapter>, all） |
 
 ## 目录结构速查（v2）
 
@@ -63,6 +73,13 @@ description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节
   process/                          # 过程管理产物
     INFO/                           # 收集到的信息
       01-core.yaml                   # 小说核心信息
+      world/                         # 世界观设定
+        basic.yaml                    # 基础世界观
+        factions/                     # 势力设定
+        history.yaml                  # 历史设定
+        powers/                       # 力量体系
+        organizations/                # 组织设定
+        locations/                    # 地点设定
       characters/                    # 角色分类目录
         protagonist/                  # 主角（完整设定）
         main_cast/                    # 主角团（完整设定）
@@ -125,13 +142,68 @@ description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节
 - ❌ 不能写该角色不可能知道的信息
 - ❌ 不能直呼其名不认识的角色
 
+### 5. 多平台发布机制
+
+支持将已归档的章节发布到多个平台：
+- **适配器模式**：每个平台有独立的适配器
+- **内容哈希检测**：自动跳过未变更内容
+- **发布状态追踪**：记录发布时间、URL、状态
+- **支持平台**：
+  - 飞书文档（feishu）
+  - 知乎（zhihu，预留）
+  - 起点（qidian，预留）
+
+## 世界观管理
+
+使用 `story world` 命令管理完整的世界观设定：
+
+| 命令 | 功能 |
+|------|------|
+| `story world basic` | 设定基础世界观 |
+| `story world faction <name>` | 设定/编辑势力 |
+| `story world history` | 设定历史背景 |
+| `story world power <name>` | 设定力量体系 |
+| `story world organization <name>` | 设定组织 |
+| `story world location <name>` | 设定地点 |
+| `story world list` | 列出所有世界观设定 |
+
+## 章节验证
+
+使用 `story verify <num>` 验证章节内容是否符合大纲要求：
+- 检查章节是否完成了大纲中的任务
+- 检查是否有剧情 inconsistency
+- 检查 POV 认知约束是否遵守
+
+## 多平台发布
+
+### 发布命令
+
+| 命令 | 功能 |
+|------|------|
+| `story publish check <platform>` | 检查平台可用性 |
+| `story publish status` | 查看发布状态 |
+| `story publish <chapter> <platform>` | 发布单章到指定平台 |
+| `story publish all <platform>` | 发布所有未发布章节 |
+| `story publish ... --force` | 强制重新发布 |
+
+### 平台配置
+
+在 story.yaml 中配置平台信息：
+```yaml
+publishing:
+  platforms:
+    feishu:
+      folder_id: "飞书文件夹ID"
+```
+
 ## 用户说"开始写小说"后的引导流程
 
 1. **检查是否在项目中**：如果没有 story.yaml，先引导 `story init`
 2. **检查核心信息**：如果没有 01-core.yaml，引导 `story collect core`
 3. **检查主角**：如果没有主角，引导 `story collect protagonist`
-4. **检查卷大纲**：如果没有 volume-001.yaml，引导 `story plan volume 1`
-5. **开始写作**：引导 `story write 1 --prompt`
+4. **检查世界观**：可选引导 `story world basic`
+5. **检查卷大纲**：如果没有 volume-001.yaml，引导 `story plan volume 1`
+6. **开始写作**：引导 `story write 1 --prompt`
 
 ## v2 与 v1 的主要区别
 
@@ -143,6 +215,9 @@ description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节
 | 角色系统 | 基础设定 | 六层认知模型 |
 | 提示词 | 简单组合 | 分层智能摘要 |
 | 创作方式 | 一次性规划 | 写一卷规划一卷 |
+| 世界观 | 基础支持 | 完整框架（faction/history/power/organization/location） |
+| 验证 | 无 | 章节验证机制 |
+| 发布 | 无 | 多平台发布支持 |
 
 ## GitHub Issue 管理功能
 

@@ -5,7 +5,7 @@
 ## 核心特性
 
 - ✅ **主 Agent + 子 Agent 架构** - 职责分离，避免"忘事"
-- ✅ **两目录设计** - process/output 清晰分离
+- ✅ **三目录设计** - process/output 清晰分离
 - ✅ **零依赖** - 仅使用 Python 标准库
 - ✅ **全 YAML 数据格式** - 人类可读，易于编辑
 - ✅ **写一卷规划一卷** - 渐进式创作，无前期负担
@@ -13,6 +13,9 @@
 - ✅ **智能提示词分层摘要** - 避免被截断，关键信息优先
 - ✅ **设定快照机制** - 防止剧情 inconsistency
 - ✅ **POV 认知约束** - 防止角色提前知道后面剧情
+- ✅ **完整世界观框架** - faction/history/power/organization/location
+- ✅ **章节验证** - 确保章节符合大纲要求
+- ✅ **多平台发布** - 支持发布到飞书文档等平台
 
 ## 快速开始
 
@@ -42,10 +45,13 @@ python /path/to/my-novel-v2/story.py collect core
 # 4. 创建主角
 python /path/to/my-novel-v2/story.py collect protagonist
 
-# 5. 规划第一卷
+# 5. 设定世界观（可选）
+python /path/to/my-novel-v2/story.py world basic
+
+# 6. 规划第一卷
 python /path/to/my-novel-v2/story.py plan volume 1
 
-# 6. 生成第一章提示词
+# 7. 生成第一章提示词
 python /path/to/my-novel-v2/story.py write 1 --prompt
 ```
 
@@ -58,11 +64,47 @@ python /path/to/my-novel-v2/story.py write 1 --prompt
 | `story collect core` | 收集小说核心信息 |
 | `story collect protagonist` | 创建主角 |
 | `story collect volume <num>` | 收集卷信息 |
+| `story world basic` | 设定基础世界观 |
+| `story world faction <name>` | 设定势力设定 |
+| `story world history` | 设定历史背景 |
+| `story world power <name>` | 设定力量体系 |
+| `story world organization <name>` | 设定组织 |
+| `story world location <name>` | 设定地点 |
+| `story world list` | 列出所有世界观设定 |
 | `story plan volume <num>` | 规划卷大纲 |
 | `story plan chapter <vol> <num>` | 规划章节大纲 |
 | `story write <num> --prompt` | 生成章节提示词 |
+| `story verify <num>` | 验证章节是否符合大纲 |
 | `story archive <num>` | 归档已完成章节 |
 | `story export` | 导出小说 |
+| `story publish check <platform>` | 检查平台可用性 |
+| `story publish status` | 查看发布状态 |
+| `story publish <chapter> <platform>` | 发布单章到指定平台 |
+| `story publish all <platform>` | 发布所有未发布章节 |
+| `story github <subcommand>` | GitHub Issue 管理 |
+
+## 多平台发布
+
+支持将已归档章节发布到多个平台：
+
+```bash
+# 检查平台可用性
+story publish check feishu
+
+# 发布单章
+story publish 1 feishu
+
+# 发布所有章节
+story publish all feishu
+
+# 查看发布状态
+story publish status
+```
+
+**支持平台：**
+- 飞书文档 (feishu)
+- 知乎 (zhihu) - 预留
+- 起点 (qidian) - 预留
 
 ## 项目结构
 
@@ -72,10 +114,17 @@ python /path/to/my-novel-v2/story.py write 1 --prompt
 ├── process/                      # 过程管理产物
 │   ├── INFO/                     # 收集到的信息
 │   │   ├── 01-core.yaml          # 小说核心信息
+│   │   ├── world/                # 世界观设定
+│   │   │   ├── basic.yaml
+│   │   │   ├── factions/
+│   │   │   ├── history.yaml
+│   │   │   ├── powers/
+│   │   │   ├── organizations/
+│   │   │   └── locations/
 │   │   └── characters/            # 角色分类
 │   │       ├── protagonist/       # 主角（完整设定）
 │   │       ├── main_cast/         # 主角团（完整设定）
-│   │       ├── supporting/        # 次要配角（简化设定）
+│   │       ├── supporting/      # 次要配角（简化设定）
 │   │       └── guest/            # 路人（极简设定）
 │   ├── OUTLINE/                  # 大纲草稿
 │   │   ├── volume-001.yaml       # 卷大纲
@@ -101,7 +150,7 @@ python /path/to/my-novel-v2/story.py write 1 --prompt
 
 - **L0（必须有）**：本章大纲、任务清单、POV 认知约束
 - **L1（很重要）**：本卷大纲、主角设定、前 3 章快照
-- **L2（有用）**：其他配角设定、前 4-10 章极简摘要
+- **L2（有用）**：其他配角、前 4-10 章极简摘要
 - **L3（可选）**：更早章节、世界观细节（按需加载）
 
 ### 3. 角色六层认知模型
@@ -130,11 +179,14 @@ my-novel-v2 是对原 my-novel-skill 的完全重写：
 | 特性 | v1 | v2 |
 |------|-----|-----|
 | 架构 | 单 Agent | 主 Agent + 子 Agent |
-| 目录 | 单目录混合 | 三目录分离 |
+| 目录 | 单目录混合 | 三目录分离（process/output/templates） |
 | 数据格式 | JSON + Markdown | 全 YAML（JSON 降级） |
 | 角色系统 | 基础设定 | 六层认知模型 |
 | 提示词 | 简单组合 | 分层智能摘要 |
 | 创作方式 | 一次性规划 | 写一卷规划一卷 |
+| 世界观 | 基础支持 | 完整框架 |
+| 验证 | 无 | 章节验证 |
+| 发布 | 无 | 多平台发布 |
 
 ## 开发
 
