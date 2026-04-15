@@ -359,40 +359,6 @@ def main():
 
     platform = filtered_args[1]
 
-    # Find project root
-    root = find_project_root()
-    if not root:
-        cli.print_out("  Error: Not in a novel project (no story.yaml/story.json)")
-        cli.print_out("  Run 'story init' first")
-        return
-
-    config = load_config(root)
-    paths = load_project_paths(root)
-
-    # Parse options
-    force = '--force' in sys.argv
-
-    # Handle status command
-    if target == 'status':
-        show_publishing_status(config, paths, extra_args[1:])
-        return
-
-    # Handle check command
-    if target == 'check':
-        if len(extra_args) < 2:
-            show_publish_help()
-            return
-        platform = extra_args[1]
-        check_platform(platform, root, config, paths)
-        return
-
-    # Handle publish commands
-    if len(extra_args) < 2:
-        show_publish_help()
-        return
-
-    platform = extra_args[1]
-
     if cli.is_interactive() or not cli.is_json_mode():
         print(f"\n{c('═' * 60, Colors.BOLD)}")
         print(f"  {c('[PUBLISH]', Colors.BOLD)}")
