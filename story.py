@@ -9,7 +9,7 @@ from pathlib import Path
 # Add src_v2 to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src_v2 import init, paths, status, collect, plan, write, archive, export, world, verify, github
+from src_v2 import init, paths, status, collect, plan, write, archive, export, world, verify, github, publish
 
 
 def show_help():
@@ -27,6 +27,7 @@ Commands:
   archive     Archive completed chapter
   export      Export novel
   github      GitHub Issue 查阅和创建 (check, list, view, create, bug, feature)
+  publish     Publish chapters to platforms (check, status, <chapter>, all)
 
 Use 'story <command> --help' for more info.
 """)
@@ -61,6 +62,7 @@ def main():
         'archive': archive,
         'export': export,
         'github': github,
+        'publish': publish,
     }
 
     if cmd in commands:
