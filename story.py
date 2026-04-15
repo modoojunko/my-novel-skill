@@ -9,7 +9,7 @@ from pathlib import Path
 # Add src_v2 to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src_v2 import init, paths, status, collect, plan, write, archive, export, world
+from src_v2 import init, paths, status, collect, plan, write, archive, export, world, verify
 
 
 def show_help():
@@ -23,6 +23,7 @@ Commands:
   world       Manage world building (basic, faction, history, power, etc.)
   plan        Plan outline (volume, chapter)
   write       Generate chapter prompt / write
+  verify      Verify that chapter follows the prompt
   archive     Archive completed chapter
   export      Export novel
 
@@ -55,6 +56,7 @@ def main():
         'world': world,
         'plan': plan,
         'write': write,
+        'verify': verify,
         'archive': archive,
         'export': export,
     }
