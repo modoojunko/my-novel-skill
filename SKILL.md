@@ -53,6 +53,7 @@ description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节
 | `story write <num> --prompt` | 生成章节提示词 |
 | `story archive <num>` | 归档已完成章节 |
 | `story export` | 导出小说 |
+| `story github <subcommand>` | GitHub Issue 管理 |
 
 ## 目录结构速查（v2）
 
@@ -142,3 +143,102 @@ description: 用户提到"小说"、"写小说"、"小说工作流"、"写章节
 | 角色系统 | 基础设定 | 六层认知模型 |
 | 提示词 | 简单组合 | 分层智能摘要 |
 | 创作方式 | 一次性规划 | 写一卷规划一卷 |
+
+## GitHub Issue 管理功能
+
+my-novel-skill 集成了 GitHub Issue 查阅和创建功能，可以直接通过命令行提交和查看 issues。
+
+### 前置条件
+
+1. **安装 GitHub CLI**
+   ```bash
+   # Ubuntu/Debian
+   (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
+   && sudo mkdir -p -m 755 /etc/apt/keyrings \
+   && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+   && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+   && sudo apt update \
+   && sudo apt install gh -y
+   ```
+
+2. **认证登录**
+   ```bash
+   gh auth login
+   ```
+   按照提示完成认证。
+
+3. **检查状态**
+   ```bash
+   story github check
+   ```
+
+### GitHub 命令列表
+
+| 命令 | 功能 |
+|------|------|
+| `story github check` | 检查 GitHub CLI 安装和认证状态 |
+| `story github list` | 列出 Issues（默认显示开放的） |
+| `story github view <number>` | 查看单个 Issue |
+| `story github create` | 创建 Issue（交互式） |
+| `story github bug` | 创建 Bug 报告 |
+| `story github feature` | 创建功能需求 |
+
+### 对话式 Issue 提交流程
+
+当用户说"我要提一个 issue"、"发现一个 bug"或"有个功能建议"时，按以下流程处理：
+
+#### 1. 确认 Issue 类型
+
+询问用户：
+```
+你想提交什么类型的 issue？
+1. 🐛 Bug 反馈 - 工具使用中遇到的问题
+2. 🚀 功能需求 - 希望添加的新功能
+3. 💬 其他 - 其他问题或建议
+```
+
+#### 2. 收集信息
+
+根据类型引导用户提供必要信息：
+
+**Bug 反馈：**
+- 问题描述（关于工具的问题）
+- 重现步骤
+- 预期行为 vs 实际行为
+- 错误信息（如果有）
+
+**功能需求：**
+- 需求描述（关于工具功能的建议）
+- 使用场景
+- 建议方案（可选）
+
+#### 3. 使用对应命令提交
+
+**Bug 反馈示例：**
+```bash
+story github bug \
+  --title "story plan 命令执行出错" \
+  --description "使用 story plan 命令时出现错误" \
+  --steps "1. 执行 story plan chapter 1 2\n2. ..." \
+  --expected "正常生成章节大纲" \
+  --actual "报错退出" \
+  --error-message "[粘贴错误信息]"
+```
+
+**功能需求示例：**
+```bash
+story github feature \
+  --title "自动生成章节摘要" \
+  --description "希望能自动生成章节内容摘要" \
+  --use-case "写完一章后，自动生成该章的剧情摘要" \
+  --suggestion "在 archive 命令中添加 --summary 选项"
+```
+
+#### 4. 提交后
+
+- 显示 issue 编号和 URL
+- 询问是否需要在浏览器中打开
+- 告知用户可以随时查看或更新 issue
+
+**注意：** Issue 内容应只关于 my-novel-skill 工具本身，不要包含具体小说内容、剧情设定等信息。
