@@ -194,6 +194,8 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
         if src_file.exists():
             copyfile(src_file, dest_file)
             print(f"    {c('✓', Colors.GREEN)} Chapter {chapter_num}")
+        else:
+            print(f"    {c('⚠', Colors.YELLOW)} Chapter {chapter_num} (file missing, skipped)")
 
     # Create volume info file
     vol_info = {
