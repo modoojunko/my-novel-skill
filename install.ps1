@@ -1,7 +1,7 @@
 # install.ps1 - Install my-novel-v2 skill (Windows)
 
 param(
-    [ValidateSet("workbuddy", "claude", "openclaw")]
+    [ValidateSet("workbuddy", "claude", "openclaw", "hermes")]
     [string]$Platform = "workbuddy"
 )
 
@@ -17,6 +17,9 @@ switch ($Platform) {
     }
     "openclaw" {
         $Dest = Join-Path $env:USERPROFILE ".openclaw\skills\$SkillName"
+    }
+    "hermes" {
+        $Dest = Join-Path $env:USERPROFILE ".hermes\skills\$SkillName"
     }
 }
 
@@ -43,3 +46,40 @@ if (Test-Path (Join-Path $ScriptDir "docs")) {
 
 Write-Host "Installed $SkillName to $Dest"
 Write-Host "Files: SKILL.md, README.md, install.md, story.py, src/, docs/"
+
+# Hermes专用：创建wrapper脚本，让story命令可用
+if ($Platform -eq "hermes") {
+    $BinDir = Join-Path $env:USERPROFILE ".local\bin"
+    if (-not (Test-Path $BinDir)) {
+        New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
+    }
+    
+    $WrapperBat = Join-Path $BinDir "story.bat"
+    $WrapperContent = @"
+@echo off
+REM story.bat - Wrapper for my-novel-skill story.py
+set "SKILL_DIR=%USERPROFILE%\.hermes\skills\my-novel-v2"
+if exist "%SKILL_DIR%\story.py" (
+    REM Try python3 first, then python
+    where python3 >nul 2>nul
+    if %errorlevel% equ 0 (
+        python3 "%SKILL_DIR%\story.py" %*
+    ) else (
+        python "%SKILL_DIR%\story.py" %*
+    )
+) else (
+    echo Error: my-novel-skill not found at %SKILL_DIR%
+    echo Please run install.ps1 hermes first
+    exit /b 1
+)
+"@
+    $WrapperContent | Out-File -FilePath $WrapperBat -Encoding ASCII
+    
+    Write-Host ""
+    Write-Host "✅ Hermes installation complete!"
+    Write-Host "   - Wrapper script created at: $WrapperBat"
+    Write-Host "   - You can now use 'story' command directly!"
+    Write-Host ""
+    Write-Host "   If 'story' command is not found, add this to your PATH environment variable:"
+    Write-Host "   $BinDir"
+}

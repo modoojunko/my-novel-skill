@@ -31,6 +31,28 @@ cp -r src_v2 ~/.claude/skills/my-novel-v2/src
 cp -r docs ~/.claude/skills/my-novel-v2/docs 2>/dev/null || true
 ```
 
+### Hermes Agent
+
+```bash
+git clone <repository-url> my-novel-v2
+cd my-novel-v2
+./install.sh hermes
+```
+
+或者使用提供的安装脚本：
+
+**Linux/macOS:**
+```bash
+./install.sh hermes
+```
+
+**Windows (PowerShell):**
+```powershell
+.\install.ps1 -Platform hermes
+```
+
+安装完成后，你就可以直接使用`story`命令了，不需要完整路径！
+
 ## 快速开始
 
 1. 创建一个新目录作为你的小说项目
