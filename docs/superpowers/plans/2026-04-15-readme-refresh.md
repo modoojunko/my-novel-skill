@@ -1,64 +1,56 @@
+# README 刷新 Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 完全重写 README.md，从命令行视角转变为小说作者 + AI Agent 双视角。
+
+**Architecture:** 单一文件修改（README.md），按章节逐步重写，保持 git 历史可追踪。
+
+**Tech Stack:** Markdown
+
+---
+
+## File Structure
+
+**Files to Modify:**
+- `README.md` - 完全重写
+
+---
+
+### Task 1: Write new header and intro section
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Replace header and intro**
+
+Replace lines 1-4 with:
+
+```markdown
 # AI 辅助小说写作工作流
 
-> 解决AI写小说时的各种痛点：忘事、设定崩、角色OOC、提示词被截断……
+> 告诉 Agent "我想写小说"，把仓库 URL 丢给它，剩下的交给它。
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: update README header and intro"
+```
 
 ---
 
-## 🎯 这个工具解决了什么问题？
+### Task 2: Add "给 Agent 的指令" section
 
-### 1️⃣ AI写着写着就"忘事"了？
-**问题**：AI写了后面忘前面，角色名字写错、伏笔忘了收、剧情前后矛盾
-**解决方案**：
-- ✅ **设定快照机制** - 每写完一章自动生成快照，记录哪些情节已发生、哪些角色已出场、人物状态变化
-- ✅ **主 Agent + 子 Agent 分离** - 主 Agent 管进度和记忆，子 Agent 只负责写正文
+**Files:**
+- Modify: `README.md`
 
----
+- [ ] **Step 1: Add Agent instructions section after intro**
 
-### 2️⃣ 提示词太长被截断？
-**问题**：把世界观、角色、前情提要都塞进去，提示词动辄上万字，直接被模型截断
-**解决方案**：
-- ✅ **提示词分层摘要** - 按优先级分层，关键信息（本章大纲、任务清单、POV认知）优先保留，次要信息智能摘要
-- ✅ **Token 预算控制** - L0（必须有）30%、L1（很重要）30%、L2（有用）20%、L3（可选）20%
+Insert after line 4:
 
----
-
-### 3️⃣ 角色提前知道后面剧情？
-**问题**：角色还没调查就知道凶手是谁，刚见面就叫出对方名字，各种OOC
-**解决方案**：
-- ✅ **POV 认知约束** - 每个角色有独立的认知状态，严格限制只能写该角色看到、听到、推理出的信息
-- ✅ **角色六层认知模型** - 世界观→自我定义→价值观→能力→技能→环境，确保角色行为符合设定
-
----
-
-### 4️⃣ 前期规划负担太重？
-**问题**：还没开始写，先要想完整本书的大纲、几百个角色、完整世界观，直接放弃
-**解决方案**：
-- ✅ **写一卷规划一卷** - 不用一开始就想完整本书，先写好第一卷，再规划第二卷
-- ✅ **渐进式信息收集** - 核心设定先确定，细节边写边补
-
----
-
-### 5️⃣ 文件混乱找不到东西？
-**问题**：大纲、角色设定、正文、各种版本的草稿混在一起，找起来要人命
-**解决方案**：
-- ✅ **三目录设计** - process/（过程管理）、output/（最终正文）清晰分离
-- ✅ **全 YAML 数据格式** - 人类可读，易于编辑，不用翻数据库
-
----
-
-### 6️⃣ 发布到多平台太麻烦？
-**问题**：写完一章要复制粘贴到飞书、知乎、起点，还要手动更新目录
-**解决方案**：
-- ✅ **多平台一键发布** - 飞书文档等平台支持，自动跳过未变更内容
-- ✅ **发布状态追踪** - 记录发布时间、URL、状态
-
----
-
-### 7️⃣ 世界观设定零散不成体系？
-**问题**：势力、历史、力量体系、地点散落在各种笔记里，想找的时候找不到
-**解决方案**：
-- ✅ **完整世界观框架** - faction（势力）、history（历史）、power（力量体系）、organization（组织）、location（地点）统一管理
-
+```markdown
 ---
 
 ## 🤖 给 Agent 的指令（重要！）
@@ -89,7 +81,27 @@ python story.py init --non-interactive --json --args '{"title":"小说标题","g
 ```
 
 ---
+```
 
+- [ ] **Step 2: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: add Agent instructions section"
+```
+
+---
+
+### Task 3: Add "给作者的指南" section
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Add author guide section**
+
+Insert after the Agent instructions section:
+
+```markdown
 ## 👤 给作者的指南
 
 ### 你可以这样开始...
@@ -115,7 +127,27 @@ python story.py init --non-interactive --json --args '{"title":"小说标题","g
 | 🚀 多平台发布 | 飞书文档等平台一键发布 |
 
 ---
+```
 
+- [ ] **Step 2: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: add author guide section"
+```
+
+---
+
+### Task 4: Add example dialogues section
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Add example dialogues section**
+
+Insert after the author guide section:
+
+```markdown
 ## 💬 示例对话
 
 ### 场景 1：从零开始写小说
@@ -163,7 +195,29 @@ Agent：没问题，这就发布...
 ```
 
 ---
+```
 
+- [ ] **Step 2: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: add example dialogues section"
+```
+
+---
+
+### Task 5: Add technical details section at the end
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Keep and rework existing technical content**
+
+Keep the original "核心特性", "项目结构", "核心设计理念", "开发", "许可证" sections, but move them to the end under a new "技术细节" section.
+
+Replace everything from line 5 ("## 核心特性") onwards with:
+
+```markdown
 ## 🔧 技术细节（给好奇的人）
 
 ### 核心特性
@@ -353,3 +407,32 @@ python story.py --help
 ### 许可证
 
 MIT License
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add README.md
+git commit -m "docs: add technical details section and restructure README"
+```
+
+---
+
+## Plan Self-Review
+
+**1. Spec coverage:**
+- ✅ 新标题和介绍
+- ✅ 给 Agent 的指令区块
+- ✅ 给作者的指南
+- ✅ 示例对话
+- ✅ 技术细节后置
+- ✅ 前 3 屏无命令行
+
+**2. Placeholder scan:**
+- ✅ 无 TBD/TODO
+- ✅ 所有代码块完整
+- ✅ 所有步骤明确
+
+**3. Type consistency:**
+- ✅ 文件路径一致
+- ✅ 提交信息格式统一
