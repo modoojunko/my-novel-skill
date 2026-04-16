@@ -10,11 +10,10 @@ Supports both interactive and non-interactive modes:
 """
 
 import sys
-import argparse
 import json
 from pathlib import Path
 from .paths import find_project_root, load_config, load_project_paths
-from .templates import get_collect_questions, ensure_default_templates
+from .templates import ensure_default_templates
 from .outline import (
     create_volume_outline, create_chapter_outline,
     add_chapter_to_volume,
