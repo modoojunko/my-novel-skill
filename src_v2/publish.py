@@ -4,6 +4,7 @@
 story:publish - Publish chapters to multiple platforms
 """
 import sys
+import time
 import hashlib
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,34 @@ from .paths import find_project_root, load_config, save_config, load_project_pat
 from . import cli
 from .publishing import get_registry, PublishResult
 from .progress import load_progress, get_chapter_status
+
+
+def with_retry(func, max_attempts: int = 4, retry_delay: float = 1.0):
+    """
+    带重试的函数执行
+
+    Args:
+        func: 要执行的函数（无参数，使用 lambda 包装）
+        max_attempts: 最大尝试次数（默认 4：1 次初始 + 3 次重试）
+        retry_delay: 重试间隔秒数
+
+    Returns:
+        func 的返回值
+
+    Raises:
+        最后一次尝试的异常
+    """
+    last_exception = None
+    for attempt in range(max_attempts):
+        try:
+            return func()
+        except Exception as e:
+            last_exception = e
+            if attempt < max_attempts - 1:
+                time.sleep(retry_delay)
+            else:
+                raise
+    raise last_exception  # 理论上不会走到这里
 
 
 class Colors:
@@ -198,22 +227,38 @@ class PublishingManager:
         existing_url = existing_status.get('url') if existing_status else None
         previous_hash = existing_status.get('content_hash') if existing_status else None
 
-        # 准备元数据
+        # 准备元数据（章节编号补零到3位）
         structure = self.config.get('structure', {})
         chapters_per_volume = structure.get('chapters_per_volume', 30)
         volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
 
+        # 从章节大纲获取标题（如果有）
+        chapter_title = ""
+        # 尝试从 outline 读取章节标题
+        # 简化版本：使用默认标题
+        if not chapter_title:
+            chapter_title = f"第{chapter_num}章"
+
         metadata = {
             'chapter_num': chapter_num,
             'volume_num': volume_num,
-            'title': f"第{chapter_num}章"
+            'title': f"第 {chapter_num:03d} 章：{chapter_title.replace('第', '').replace(str(chapter_num), '').replace('章', '').strip()}"
         }
+        # 清理标题，避免重复
+        if "：：" in metadata['title']:
+            metadata['title'] = metadata['title'].replace("：：", "：")
 
         # 转换内容
         converted_content = adapter.convert_content(content, chapter_num, metadata)
 
-        # 发布
-        result = adapter.publish_chapter(converted_content, chapter_num, metadata, existing_url)
+        # 发布（带重试）
+        def do_publish():
+            return adapter.publish_chapter(converted_content, chapter_num, metadata, existing_url)
+
+        try:
+            result = with_retry(do_publish, max_attempts=4, retry_delay=1.0)
+        except Exception as e:
+            result = PublishResult(False, error_message=f"重试后仍失败: {str(e)}")
 
         # 更新状态
         content_hash = compute_content_hash(content)
@@ -248,6 +293,75 @@ class PublishingManager:
             results.append((chapter_num, result))
 
         return results
+
+    def _generate_toc_content(self) -> str:
+        """生成目录文档内容"""
+        publishing = get_publishing_config(self.config)
+        chapters = publishing.get('chapters', {})
+
+        content = "# 目录\n\n"
+
+        # 按章节编号排序
+        sorted_chapters = sorted(chapters.keys(), key=int)
+
+        if not sorted_chapters:
+            content += "暂无已发布章节\n"
+        else:
+            for ch_key in sorted_chapters:
+                ch_num = int(ch_key)
+                platforms = chapters[ch_key]
+
+                # 获取飞书发布信息
+                feishu_info = platforms.get('feishu', {})
+                status = feishu_info.get('status', 'unknown')
+                url = feishu_info.get('url', '')
+
+                if status in ('published', 'updated') and url:
+                    content += f"- [第 {ch_num:03d} 章]({url})\n"
+                else:
+                    content += f"- 第 {ch_num:03d} 章 ({status})\n"
+
+        content += "\n---\n"
+        content += f"最后更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+
+        return content
+
+    def update_toc(self, platform: str = 'feishu') -> PublishResult:
+        """
+        更新目录文档
+
+        Args:
+            platform: 目标平台（目前仅支持 feishu）
+
+        Returns:
+            PublishResult 对象
+        """
+        if platform != 'feishu':
+            return PublishResult(False, error_message=f"目录更新仅支持 feishu 平台")
+
+        adapter = self.get_adapter(platform)
+        if not adapter:
+            return PublishResult(False, error_message=f"未知平台: {platform}")
+
+        if not adapter.is_available():
+            return PublishResult(False, error_message=f"{adapter.display_name} 不可用")
+
+        # 生成目录内容
+        toc_content = self._generate_toc_content()
+
+        # 使用固定的"章节 0"作为目录
+        metadata = {
+            'chapter_num': 0,
+            'title': "000-目录"
+        }
+
+        # 目录总是创建新的或更新（目前简化实现）
+        # 实际需要跟踪目录文档的 URL
+        return PublishResult(
+            False,
+            error_message="目录文档自动更新功能需要跟踪目录 URL。\n"
+                          "请在 story.yaml 中配置 publishing.platforms.feishu.toc_url"
+        )
 
 
 def show_publish_help():
