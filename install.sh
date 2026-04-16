@@ -36,11 +36,11 @@ cp "$SCRIPT_DIR/SKILL.md" "$DEST/"
 cp "$SCRIPT_DIR/README.md" "$DEST/" 2>/dev/null || true
 cp "$SCRIPT_DIR/install.md" "$DEST/" 2>/dev/null || true
 cp "$SCRIPT_DIR/story.py" "$DEST/"
-cp -r "$SCRIPT_DIR/src_v2" "$DEST/src"
+cp -r "$SCRIPT_DIR/src_v2" "$DEST/src_v2"
 cp -r "$SCRIPT_DIR/docs" "$DEST/docs" 2>/dev/null || true
 
 echo "Installed $SKILL_NAME to $DEST"
-echo "Files: SKILL.md, README.md, install.md, story.py, src/, docs/"
+echo "Files: SKILL.md, README.md, install.md, story.py, src_v2/, docs/"
 
 # Hermes专用：创建wrapper脚本，让story命令可用
 if [ "$PLATFORM" = "hermes" ]; then

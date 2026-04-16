@@ -39,13 +39,13 @@ Copy-Item (Join-Path $ScriptDir "SKILL.md") -Destination $Dest
 Copy-Item (Join-Path $ScriptDir "README.md") -Destination $Dest -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $ScriptDir "install.md") -Destination $Dest -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $ScriptDir "story.py") -Destination $Dest
-Copy-Item (Join-Path $ScriptDir "src_v2") -Destination (Join-Path $Dest "src") -Recurse
+Copy-Item (Join-Path $ScriptDir "src_v2") -Destination (Join-Path $Dest "src_v2") -Recurse
 if (Test-Path (Join-Path $ScriptDir "docs")) {
     Copy-Item (Join-Path $ScriptDir "docs") -Destination $Dest -Recurse -ErrorAction SilentlyContinue
 }
 
 Write-Host "Installed $SkillName to $Dest"
-Write-Host "Files: SKILL.md, README.md, install.md, story.py, src/, docs/"
+Write-Host "Files: SKILL.md, README.md, install.md, story.py, src_v2/, docs/"
 
 # Hermes专用：创建wrapper脚本，让story命令可用
 if ($Platform -eq "hermes") {
