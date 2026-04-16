@@ -15,6 +15,7 @@ from .outline import (
     load_chapter_outline, save_chapter_outline,
 )
 from .timeline import collect_timeline_for_volume
+from . import cli
 
 
 class Colors:
@@ -32,12 +33,6 @@ def c(text: str, color: str) -> str:
     return f"{color}{text}{Colors.ENDC}"
 
 
-def input_with_default(prompt: str, default: str = "") -> str:
-    """Get input with default value"""
-    user_input = input(f"  {prompt} [{default}]: ").strip()
-    return user_input if user_input else default
-
-
 def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = False, non_interactive: bool = False):
     """Interactive volume planning"""
     print(f"\n{c('═' * 60, Colors.CYAN)}")
@@ -48,32 +43,40 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
     outline_dir = paths['outline']
     existing = load_volume_outline(outline_dir, volume_num)
     if existing:
+        if non_interactive:
+            print(f"  {c(f'Volume {volume_num} outline already exists, skipping', Colors.YELLOW)}")
+            return
         print(f"  {c(f'Warning: Volume {volume_num} outline already exists', Colors.YELLOW)}")
-        response = input(f"  Re-plan? [y/N]: ").strip().lower()
-        if response != 'y':
+        response = cli.input_with_default("Re-plan?", "N", arg_key="replan")
+        if response.strip().lower() != 'y':
             print("  Cancelled")
             return
 
     # Collect basic info
-    title = input_with_default("Volume title", f"第{volume_num}卷")
-    theme = input_with_default("Theme", "")
+    title = cli.input_with_default("Volume title", f"第{volume_num}卷", arg_key="volume_title")
+    theme = cli.input_with_default("Theme", "", arg_key="theme")
 
     # Create outline
     outline = create_volume_outline(volume_num, title, theme)
 
     # Get structure info
     print(f"\n  {c('[STRUCTURE]', Colors.BOLD)}")
-    outline['structure']['opening'] = input_with_default("Opening", "")
-    outline['structure']['development'] = input_with_default("Development", "")
-    outline['structure']['climax'] = input_with_default("Climax", "")
-    outline['structure']['ending'] = input_with_default("Ending", "")
+    outline['structure']['opening'] = cli.input_with_default("Opening", "", arg_key="opening")
+    outline['structure']['development'] = cli.input_with_default("Development", "", arg_key="development")
+    outline['structure']['climax'] = cli.input_with_default("Climax", "", arg_key="climax")
+    outline['structure']['ending'] = cli.input_with_default("Ending", "", arg_key="ending")
 
     # Add chapters
     structure = config.get('structure', {})
     chapters_per_volume = structure.get('chapters_per_volume', 30)
 
     print(f"\n  {c('[CHAPTERS]', Colors.BOLD)}")
-    auto_chapters = input_with_default(f"Auto-create {chapters_per_volume} chapters? [Y/n]", "Y").lower() == 'y'
+    if non_interactive:
+        auto_chapters = True
+    else:
+        auto_chapters = cli.input_with_default(
+            f"Auto-create {chapters_per_volume} chapters?", "Y", arg_key="auto_chapters"
+        ).lower() == 'y'
 
     if auto_chapters:
         for i in range(1, chapters_per_volume + 1):
@@ -82,10 +85,10 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
         print("  Add chapters manually (leave title empty when done)")
         i = 1
         while True:
-            ch_title = input_with_default(f"Chapter {i} title", "")
+            ch_title = cli.input_with_default(f"Chapter {i} title", "", arg_key=f"chapter_{i}_title")
             if not ch_title:
                 break
-            ch_pov = input_with_default(f"Chapter {i} POV", "")
+            ch_pov = cli.input_with_default(f"Chapter {i} POV", "", arg_key=f"chapter_{i}_pov")
             outline = add_chapter_to_volume(outline, i, ch_title, ch_pov)
             i += 1
 
@@ -98,7 +101,7 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
     print(f"\n  {c('✓ Volume outline saved!', Colors.GREEN)}")
 
 
-def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
+def plan_chapter(volume_num: int, chapter_num: int, paths: dict, non_interactive: bool = False):
     """Interactive chapter planning"""
     print(f"\n{c('═' * 60, Colors.CYAN)}")
     print(f"  {c(f'[PLAN] Chapter {chapter_num} (Volume {volume_num})', Colors.BOLD)}")
@@ -116,9 +119,13 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
     # Check if chapter exists
     existing = load_chapter_outline(outline_dir, volume_num, chapter_num)
     if existing:
+        if non_interactive:
+            # 在非交互模式下，直接使用已有的或自动创建
+            print(f"  {c(f'Chapter {chapter_num} outline already exists, skipping', Colors.YELLOW)}")
+            return
         print(f"  {c(f'Warning: Chapter {chapter_num} outline already exists', Colors.YELLOW)}")
-        response = input(f"  Re-plan? [y/N]: ").strip().lower()
-        if response != 'y':
+        response = cli.input_with_default("Re-plan?", "N", arg_key="replan")
+        if response.strip().lower() != 'y':
             print("  Cancelled")
             return
 
@@ -132,12 +139,16 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
             break
 
     # Collect info
-    title = input_with_default("Chapter title", chapter_title)
-    pov = input_with_default("POV character", chapter_pov)
+    title = cli.input_with_default("Chapter title", chapter_title, arg_key="chapter_title")
+    pov = cli.input_with_default("POV character", chapter_pov, arg_key="pov")
 
     # Create outline
     outline = create_chapter_outline(chapter_num, volume_num, title, pov)
-    outline['summary'] = input_with_default("Chapter summary (high-level overview: plot progression, character arcs)", "")
+    outline['summary'] = cli.input_with_default(
+        "Chapter summary (high-level overview: plot progression, character arcs)",
+        "",
+        arg_key="summary"
+    )
 
     # Save
     save_chapter_outline(outline_dir, volume_num, chapter_num, outline)
@@ -217,7 +228,7 @@ def main():
             print("  Usage: story plan chapter <volume> <number>")
             return
         try:
-            plan_chapter(volume_num, chapter_num, paths)
+            plan_chapter(volume_num, chapter_num, paths, non_interactive)
         except ValueError:
             print("  Error: Volume and chapter numbers must be integers")
     else:

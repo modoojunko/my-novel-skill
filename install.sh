@@ -36,11 +36,11 @@ cp "$SCRIPT_DIR/SKILL.md" "$DEST/"
 cp "$SCRIPT_DIR/README.md" "$DEST/" 2>/dev/null || true
 cp "$SCRIPT_DIR/install.md" "$DEST/" 2>/dev/null || true
 cp "$SCRIPT_DIR/story.py" "$DEST/"
-cp -r "$SCRIPT_DIR/src_v2" "$DEST/src"
+cp -r "$SCRIPT_DIR/src_v2" "$DEST/src_v2"
 cp -r "$SCRIPT_DIR/docs" "$DEST/docs" 2>/dev/null || true
 
 echo "Installed $SKILL_NAME to $DEST"
-echo "Files: SKILL.md, README.md, install.md, story.py, src/, docs/"
+echo "Files: SKILL.md, README.md, install.md, story.py, src_v2/, docs/"
 
 # Hermes专用：创建wrapper脚本，让story命令可用
 if [ "$PLATFORM" = "hermes" ]; then
@@ -77,4 +77,22 @@ EOF
     echo ""
     echo "   If 'story' command is not found, add this to your ~/.bashrc or ~/.zshrc:"
     echo "   export PATH=\"\$HOME/.local/bin:\$PATH\""
+fi
+
+echo ""
+echo "📚 检查飞书 CLI..."
+if command -v lark &> /dev/null; then
+    echo "✅ 飞书 CLI (lark) 已安装"
+    echo "   请运行 'lark auth login' 完成认证（如尚未认证）"
+elif command -v feishu &> /dev/null; then
+    echo "✅ 飞书 CLI (feishu) 已安装"
+    echo "   请运行 'feishu auth login' 完成认证（如尚未认证）"
+else
+    echo "⚠️  飞书 CLI 未安装"
+    echo ""
+    echo "   如需使用多平台发布功能，请安装飞书 CLI："
+    echo "   访问 https://github.com/larksuite/cli 查看安装说明"
+    echo ""
+    echo "   安装后运行："
+    echo "   lark auth login"
 fi
