@@ -2,12 +2,18 @@
 # -*- coding: utf-8 -*-
 """
 story:plan - Plan volume and chapter outlines
+
+Supports both interactive and non-interactive modes:
+- Interactive: `story plan <target>` (normal output)
+- Non-interactive: `story plan <target> --non-interactive`
+- JSON output: `story plan <target> --json`
 """
 
 import sys
+import json
 from pathlib import Path
 from .paths import find_project_root, load_config, load_project_paths
-from .templates import get_collect_questions, ensure_default_templates
+from .templates import ensure_default_templates
 from .outline import (
     create_volume_outline, create_chapter_outline,
     add_chapter_to_volume,
@@ -18,38 +24,23 @@ from .timeline import collect_timeline_for_volume
 from . import cli
 
 
-class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-
-
-def c(text: str, color: str) -> str:
-    return f"{color}{text}{Colors.ENDC}"
-
-
-def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = False, non_interactive: bool = False):
+def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = False):
     """Interactive volume planning"""
-    print(f"\n{c('═' * 60, Colors.CYAN)}")
-    print(f"  {c(f'[PLAN] Volume {volume_num}', Colors.BOLD)}")
-    print(f"{c('═' * 60, Colors.CYAN)}\n")
+    cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
+    cli.print_out(f"  {cli.c(f'[PLAN] Volume {volume_num}', cli.Colors.BOLD)}")
+    cli.print_out(f"{cli.c('═' * 60, cli.Colors.CYAN)}\n")
 
     # Check if already exists
     outline_dir = paths['outline']
     existing = load_volume_outline(outline_dir, volume_num)
     if existing:
-        if non_interactive:
-            print(f"  {c(f'Volume {volume_num} outline already exists, skipping', Colors.YELLOW)}")
+        if not cli.is_interactive():
+            cli.print_out(f"  {cli.c(f'Volume {volume_num} outline already exists, skipping', cli.Colors.YELLOW)}")
             return
-        print(f"  {c(f'Warning: Volume {volume_num} outline already exists', Colors.YELLOW)}")
+        cli.print_out(f"  {cli.c(f'Warning: Volume {volume_num} outline already exists', cli.Colors.YELLOW)}")
         response = cli.input_with_default("Re-plan?", "N", arg_key="replan")
         if response.strip().lower() != 'y':
-            print("  Cancelled")
+            cli.print_out("  Cancelled")
             return
 
     # Collect basic info
@@ -60,7 +51,7 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
     outline = create_volume_outline(volume_num, title, theme)
 
     # Get structure info
-    print(f"\n  {c('[STRUCTURE]', Colors.BOLD)}")
+    cli.print_out(f"\n  {cli.c('[STRUCTURE]', cli.Colors.BOLD)}")
     outline['structure']['opening'] = cli.input_with_default("Opening", "", arg_key="opening")
     outline['structure']['development'] = cli.input_with_default("Development", "", arg_key="development")
     outline['structure']['climax'] = cli.input_with_default("Climax", "", arg_key="climax")
@@ -70,8 +61,8 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
     structure = config.get('structure', {})
     chapters_per_volume = structure.get('chapters_per_volume', 30)
 
-    print(f"\n  {c('[CHAPTERS]', Colors.BOLD)}")
-    if non_interactive:
+    cli.print_out(f"\n  {cli.c('[CHAPTERS]', cli.Colors.BOLD)}")
+    if not cli.is_interactive():
         auto_chapters = True
     else:
         auto_chapters = cli.input_with_default(
@@ -82,7 +73,7 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
         for i in range(1, chapters_per_volume + 1):
             outline = add_chapter_to_volume(outline, i, f"第{i}章", "")
     else:
-        print("  Add chapters manually (leave title empty when done)")
+        cli.print_out("  Add chapters manually (leave title empty when done)")
         i = 1
         while True:
             ch_title = cli.input_with_default(f"Chapter {i} title", "", arg_key=f"chapter_{i}_title")
@@ -94,39 +85,39 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
 
     # Collect timeline
     if not no_timeline:
-        outline = collect_timeline_for_volume(outline, non_interactive)
+        outline = collect_timeline_for_volume(outline, not cli.is_interactive())
 
     # Save
     save_volume_outline(outline_dir, volume_num, outline)
-    print(f"\n  {c('✓ Volume outline saved!', Colors.GREEN)}")
+    cli.print_out(f"\n  {cli.c('✓ Volume outline saved!', cli.Colors.GREEN)}")
 
 
-def plan_chapter(volume_num: int, chapter_num: int, paths: dict, non_interactive: bool = False):
+def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
     """Interactive chapter planning"""
-    print(f"\n{c('═' * 60, Colors.CYAN)}")
-    print(f"  {c(f'[PLAN] Chapter {chapter_num} (Volume {volume_num})', Colors.BOLD)}")
-    print(f"{c('═' * 60, Colors.CYAN)}\n")
+    cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
+    cli.print_out(f"  {cli.c(f'[PLAN] Chapter {chapter_num} (Volume {volume_num})', cli.Colors.BOLD)}")
+    cli.print_out(f"{cli.c('═' * 60, cli.Colors.CYAN)}\n")
 
     outline_dir = paths['outline']
 
     # Check if volume exists
     volume = load_volume_outline(outline_dir, volume_num)
     if not volume:
-        print(f"  {c(f'Error: Volume {volume_num} not found', Colors.RED)}")
-        print(f"  Run 'story plan volume {volume_num}' first")
+        cli.print_out(f"  {cli.c(f'Error: Volume {volume_num} not found', cli.Colors.RED)}")
+        cli.print_out(f"  Run 'story plan volume {volume_num}' first")
         return
 
     # Check if chapter exists
     existing = load_chapter_outline(outline_dir, volume_num, chapter_num)
     if existing:
-        if non_interactive:
+        if not cli.is_interactive():
             # 在非交互模式下，直接使用已有的或自动创建
-            print(f"  {c(f'Chapter {chapter_num} outline already exists, skipping', Colors.YELLOW)}")
+            cli.print_out(f"  {cli.c(f'Chapter {chapter_num} outline already exists, skipping', cli.Colors.YELLOW)}")
             return
-        print(f"  {c(f'Warning: Chapter {chapter_num} outline already exists', Colors.YELLOW)}")
+        cli.print_out(f"  {cli.c(f'Warning: Chapter {chapter_num} outline already exists', cli.Colors.YELLOW)}")
         response = cli.input_with_default("Re-plan?", "N", arg_key="replan")
         if response.strip().lower() != 'y':
-            print("  Cancelled")
+            cli.print_out("  Cancelled")
             return
 
     # Get chapter title from volume outline
@@ -152,16 +143,22 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict, non_interactive
 
     # Save
     save_chapter_outline(outline_dir, volume_num, chapter_num, outline)
-    print(f"\n  {c('✓ Chapter outline saved!', Colors.GREEN)}")
+    cli.print_out(f"\n  {cli.c('✓ Chapter outline saved!', cli.Colors.GREEN)}")
 
 
 def show_plan_help():
-    print("""
+    cli.print_out("""
 Usage: story plan <target> [options]
 
 Targets:
   volume <num>        Plan a volume outline
   chapter <vol> <num> Plan a chapter outline
+
+Options:
+  --no-timeline        Skip timeline collection for volume
+  --json               Output JSON format for AI consumption
+  --non-interactive    Non-interactive mode (use --args)
+  --args JSON          JSON string with arguments
 
 Examples:
   story plan volume 1
@@ -175,41 +172,69 @@ def main():
         show_plan_help()
         return
 
-    # Parse options
-    target = None
-    volume_num = None
-    chapter_num = None
-    no_timeline = False
-    non_interactive = False
+    # Check for help
+    if sys.argv[1] in ('help', '--help', '-h'):
+        show_plan_help()
+        return
 
+    # First, extract --json, --non-interactive, --args from anywhere in args
+    # and set cli module's global state manually
+    json_mode = '--json' in sys.argv
+    non_interactive = '--non-interactive' in sys.argv
+
+    # Find and parse --args if present
+    args_dict = {}
+    if '--args' in sys.argv:
+        args_idx = sys.argv.index('--args')
+        if args_idx + 1 < len(sys.argv):
+            try:
+                args_dict = json.loads(sys.argv[args_idx + 1])
+            except json.JSONDecodeError:
+                pass
+
+    # Set cli module's global state manually
+    cli._json_mode = json_mode
+    cli._non_interactive = non_interactive
+    cli._args = args_dict
+
+    # Now filter out the global options and process subcommand
+    filtered_args = []
+    no_timeline = False
     i = 1
     while i < len(sys.argv):
         arg = sys.argv[i]
         if arg == '--no-timeline':
             no_timeline = True
-        elif arg == '--non-interactive':
-            non_interactive = True
-        elif arg in ('help', '--help', '-h'):
-            show_plan_help()
-            return
-        elif arg.isdigit():
+            i += 1
+        elif arg in ('--json', '--non-interactive'):
+            i += 1
+        elif arg == '--args':
+            i += 2
+        else:
+            filtered_args.append(arg)
+            i += 1
+
+    if not filtered_args:
+        show_plan_help()
+        return
+
+    target = filtered_args[0].lower()
+    target_args = filtered_args[1:]
+
+    # Parse numbers from target_args
+    volume_num = None
+    chapter_num = None
+    for arg in target_args:
+        if arg.isdigit():
             if volume_num is None:
                 volume_num = int(arg)
             else:
                 chapter_num = int(arg)
-        elif not target:
-            target = arg.lower()
-        i += 1
 
-    if not target:
-        show_plan_help()
-        return
-
+    # Find project root
     root = find_project_root()
     if not root:
-        print("  Error: Not in a novel project (no story.yaml/story.json)")
-        print("  Run 'story init' first")
-        return
+        cli.error_message("Not in a novel project (no story.yaml/story.json). Run 'story init' first.")
 
     config = load_config(root)
     paths = load_project_paths(root)
@@ -217,22 +242,22 @@ def main():
 
     if target == 'volume':
         if volume_num is None:
-            print("  Usage: story plan volume <number>")
+            cli.print_out("  Usage: story plan volume <number>")
             return
         try:
-            plan_volume(volume_num, paths, config, no_timeline, non_interactive)
+            plan_volume(volume_num, paths, config, no_timeline)
         except ValueError:
-            print("  Error: Volume number must be an integer")
+            cli.error_message("Volume number must be an integer")
     elif target == 'chapter':
         if volume_num is None or chapter_num is None:
-            print("  Usage: story plan chapter <volume> <number>")
+            cli.print_out("  Usage: story plan chapter <volume> <number>")
             return
         try:
-            plan_chapter(volume_num, chapter_num, paths, non_interactive)
+            plan_chapter(volume_num, chapter_num, paths)
         except ValueError:
-            print("  Error: Volume and chapter numbers must be integers")
+            cli.error_message("Volume and chapter numbers must be integers")
     else:
-        print(f"  Unknown target: {target}")
+        cli.print_out(f"  Unknown target: {target}")
         show_plan_help()
 
 
