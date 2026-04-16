@@ -2,10 +2,8 @@
 Feishu adapter - publish chapters to Feishu Docs via larksuite/cli
 (https://github.com/larksuite/cli)
 """
-import sys
 import subprocess
 import os
-import time
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional

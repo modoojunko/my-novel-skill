@@ -31,17 +31,14 @@ def with_retry(func, max_attempts: int = 4, retry_delay: float = 1.0):
     Raises:
         最后一次尝试的异常
     """
-    last_exception = None
     for attempt in range(max_attempts):
         try:
             return func()
         except Exception as e:
-            last_exception = e
             if attempt < max_attempts - 1:
                 time.sleep(retry_delay)
             else:
                 raise
-    raise last_exception  # 理论上不会走到这里
 
 
 class Colors:
@@ -239,14 +236,23 @@ class PublishingManager:
         if not chapter_title:
             chapter_title = f"第{chapter_num}章"
 
+        # 提取纯标题 - 移除前缀 "第X章" 格式
+        import re
+        clean_title = chapter_title
+        # 移除常见的标题前缀格式
+        clean_title = re.sub(r'^第\s*\d+\s*章[：:]\s*', '', clean_title)
+        clean_title = re.sub(r'^第\s*\d+\s*章', '', clean_title)
+        clean_title = clean_title.strip()
+
+        # 如果清理后为空，使用默认标题
+        if not clean_title:
+            clean_title = f"第{chapter_num}章"
+
         metadata = {
             'chapter_num': chapter_num,
             'volume_num': volume_num,
-            'title': f"第 {chapter_num:03d} 章：{chapter_title.replace('第', '').replace(str(chapter_num), '').replace('章', '').strip()}"
+            'title': f"第 {chapter_num:03d} 章：{clean_title}"
         }
-        # 清理标题，避免重复
-        if "：：" in metadata['title']:
-            metadata['title'] = metadata['title'].replace("：：", "：")
 
         # 转换内容
         converted_content = adapter.convert_content(content, chapter_num, metadata)
