@@ -12,6 +12,7 @@ Supports both interactive and non-interactive modes:
 import sys
 import json
 from pathlib import Path
+from typing import Dict, Any, Optional
 from .paths import find_project_root, load_config, load_project_paths
 from .templates import ensure_default_templates
 from .prompt import load_core_info
@@ -93,7 +94,7 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
     cli.print_out(f"\n  {cli.c('✓ Volume outline saved!', cli.Colors.GREEN)}")
 
 
-def build_volume_outline_prompt(volume_num: int, paths: dict) -> str:
+def build_volume_outline_prompt(volume_num: int, paths: Dict[str, Any]) -> str:
     """Build prompt for AI-assisted volume outline generation"""
     prompt = f"# 第{volume_num}卷大纲生成任务\n\n"
 
@@ -153,7 +154,7 @@ foreshadowing_in_this_volume: []
     return prompt
 
 
-def build_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: dict) -> str:
+def build_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: Dict[str, Any]) -> str:
     """Build prompt for AI-assisted chapter outline generation"""
     prompt = f"# 第{chapter_num}章大纲生成任务\n\n"
 
@@ -226,7 +227,7 @@ must_avoid: []
     return prompt
 
 
-def save_and_output_prompt(prompt: str, prompt_path: Path, json_data: dict, display_title: str):
+def save_and_output_prompt(prompt: str, prompt_path: Path, json_data: Dict[str, Any], display_title: str) -> None:
     """Save prompt to file and output result (common function)"""
     # Save prompt to file
     with open(prompt_path, 'w', encoding='utf-8') as f:
@@ -247,7 +248,7 @@ def save_and_output_prompt(prompt: str, prompt_path: Path, json_data: dict, disp
             cli.print_out("... (truncated, see full file)")
 
 
-def generate_volume_outline_prompt(volume_num: int, paths: dict) -> str:
+def generate_volume_outline_prompt(volume_num: int, paths: Dict[str, Any]) -> str:
     """Generate volume outline prompt and save to file"""
     if not cli.is_json_mode():
         cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
@@ -269,7 +270,7 @@ def generate_volume_outline_prompt(volume_num: int, paths: dict) -> str:
     return prompt
 
 
-def generate_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: dict) -> str:
+def generate_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: Dict[str, Any]) -> str:
     """Generate chapter outline prompt and save to file"""
     if not cli.is_json_mode():
         cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
