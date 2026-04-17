@@ -14,6 +14,14 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 
+def get_skill_templates_dir() -> Path:
+    """Get skill templates directory (inside the skill installation, not user project)"""
+    # Get the directory of this file (paths.py), which is in src_v2/
+    this_file = Path(__file__)
+    skill_root = this_file.parent.parent
+    return skill_root / 'templates'
+
+
 def find_project_root(start: Optional[Path] = None) -> Optional[Path]:
     """Check current directory for story.yaml (or story.json/story.yml for backward compatibility)"""
     if start is None:
@@ -102,8 +110,6 @@ def load_project_paths(root: Path) -> Dict[str, Path]:
         process_dir / 'OUTLINE',
         process_dir / 'OUTLINE' / 'volume-001',
         process_dir / 'PROMPTS',
-        process_dir / 'TEMPLATES' / 'collect',
-        process_dir / 'TEMPLATES' / 'expand',
         # Output dir structure
         output_dir / 'CONTENT' / 'volume-001',
         output_dir / 'EXPORT',
@@ -127,7 +133,7 @@ def load_project_paths(root: Path) -> Dict[str, Path]:
         'world_locations': process_dir / 'INFO' / 'world' / 'locations',
         'outline': process_dir / 'OUTLINE',
         'prompts': process_dir / 'PROMPTS',
-        'templates': process_dir / 'TEMPLATES',
+        'templates': get_skill_templates_dir(),
         'content': output_dir / 'CONTENT',
         'export': output_dir / 'EXPORT',
         'archive': output_dir / 'ARCHIVE',
