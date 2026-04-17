@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from .paths import find_project_root, load_config, load_project_paths
 from .templates import ensure_default_templates
+from .prompt import load_core_info
 from .outline import (
     create_volume_outline, create_chapter_outline,
     add_chapter_to_volume,
@@ -92,7 +93,7 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
     cli.print_out(f"\n  {cli.c('✓ Volume outline saved!', cli.Colors.GREEN)}")
 
 
-def build_volume_outline_prompt(volume_num: int, paths: dict, config: dict) -> str:
+def build_volume_outline_prompt(volume_num: int, paths: dict) -> str:
     """Build prompt for AI-assisted volume outline generation"""
     prompt = f"# 第{volume_num}卷大纲生成任务\n\n"
 
@@ -100,11 +101,9 @@ def build_volume_outline_prompt(volume_num: int, paths: dict, config: dict) -> s
     prompt += "你是一位专业的小说大纲设计师。请根据以下信息，生成一份完整、格式正确的卷大纲 YAML 文件。\n\n"
 
     # Load core info
-    from .prompt import load_core_info
     core_info = load_core_info(paths['info'])
     if core_info:
         prompt += "## 小说核心信息\n"
-        import json
         prompt += json.dumps(core_info, ensure_ascii=False, indent=2)
         prompt += "\n\n"
 
@@ -114,16 +113,15 @@ def build_volume_outline_prompt(volume_num: int, paths: dict, config: dict) -> s
         prev_volume = load_volume_outline(outline_dir, volume_num - 1)
         if prev_volume:
             prompt += f"## 第{volume_num - 1}卷大纲（参考）\n"
-            import json
             prompt += json.dumps(prev_volume, ensure_ascii=False, indent=2)
             prompt += "\n\n"
 
     # Structure requirements
     prompt += "## 输出格式要求\n"
     prompt += "请直接输出 YAML 格式，不要任何说明文字。YAML 结构如下：\n\n"
-    prompt += """```yaml
+    prompt += f"""```yaml
 volume_info:
-  number: """ + str(volume_num) + """
+  number: {volume_num}
   title: "卷标题"
   theme: "本卷主题"
 structure:
@@ -150,12 +148,12 @@ foreshadowing_in_this_volume: []
     prompt += "3. 关键事件要列出本卷的重要转折点\n"
     prompt += "4. 结构部分要详细描述起承转合\n\n"
 
-    prompt += "现在请生成第{}卷的完整大纲 YAML：\n".format(volume_num)
+    prompt += f"现在请生成第{volume_num}卷的完整大纲 YAML：\n"
 
     return prompt
 
 
-def build_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict) -> str:
+def build_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: dict) -> str:
     """Build prompt for AI-assisted chapter outline generation"""
     prompt = f"# 第{chapter_num}章大纲生成任务\n\n"
 
@@ -167,7 +165,6 @@ def build_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: dict,
     volume = load_volume_outline(outline_dir, volume_num)
     if volume:
         prompt += "## 本卷大纲\n"
-        import json
         prompt += json.dumps(volume, ensure_ascii=False, indent=2)
         prompt += "\n\n"
 
@@ -186,19 +183,18 @@ def build_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: dict,
         prev_chapter = load_chapter_outline(outline_dir, volume_num, chapter_num - 1)
         if prev_chapter:
             prompt += f"## 第{chapter_num - 1}章大纲（参考）\n"
-            import json
             prompt += json.dumps(prev_chapter, ensure_ascii=False, indent=2)
             prompt += "\n\n"
 
     # Structure requirements
     prompt += "## 输出格式要求\n"
     prompt += "请直接输出 YAML 格式，不要任何说明文字。YAML 结构如下：\n\n"
-    prompt += """```yaml
+    prompt += f"""```yaml
 chapter_info:
-  number: """ + str(chapter_num) + """
-  volume: """ + str(volume_num) + """
-  title: \"""" + chapter_title + """\"
-  pov: \"""" + chapter_pov + """\"
+  number: {chapter_num}
+  volume: {volume_num}
+  title: "{chapter_title}"
+  pov: "{chapter_pov}"
   target_words: 3000
   tone: "neutral"
 summary: "本章概要（300-500字，高层次概述：情节发展、人物弧光、情感节奏）"
@@ -225,35 +221,22 @@ must_avoid: []
     prompt += "3. 每个场景要包含：地点、POV、关键动作/对话、情感点\n"
     prompt += "4. 确保本章内容与卷大纲和前章衔接自然\n\n"
 
-    prompt += "现在请生成第{}章的完整大纲 YAML：\n".format(chapter_num)
+    prompt += f"现在请生成第{chapter_num}章的完整大纲 YAML：\n"
 
     return prompt
 
 
-def generate_volume_outline_prompt(volume_num: int, paths: dict, config: dict) -> str:
-    """Generate volume outline prompt and save to file"""
-    if not cli.is_json_mode():
-        cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
-        cli.print_out(f"  {cli.c(f'[OUTLINE] Generating Volume {volume_num} Outline Prompt', cli.Colors.BOLD)}")
-        cli.print_out(f"{cli.c('═' * 60, cli.Colors.CYAN)}\n")
-
-    prompt = build_volume_outline_prompt(volume_num, paths, config)
-
+def save_and_output_prompt(prompt: str, prompt_path: Path, json_data: dict, display_title: str):
+    """Save prompt to file and output result (common function)"""
     # Save prompt to file
-    prompt_path = paths['prompts'] / f'volume-{volume_num:03d}-outline-prompt.md'
     with open(prompt_path, 'w', encoding='utf-8') as f:
         f.write(prompt)
 
     # Output result
     if cli.is_json_mode():
-        cli.output_json({
-            'success': True,
-            'volume': volume_num,
-            'prompt_path': str(prompt_path),
-            'prompt_content': prompt
-        })
+        cli.output_json(json_data)
     else:
-        cli.print_out(f"  {cli.c('✓ Volume outline prompt generated!', cli.Colors.GREEN)}")
+        cli.print_out(f"  {cli.c('✓ ' + display_title, cli.Colors.GREEN)}")
         cli.print_out(f"  Saved to: {prompt_path}")
 
         # Also show a preview
@@ -263,10 +246,30 @@ def generate_volume_outline_prompt(volume_num: int, paths: dict, config: dict) -
         if len(lines) < len(prompt.split('\n')):
             cli.print_out("... (truncated, see full file)")
 
+
+def generate_volume_outline_prompt(volume_num: int, paths: dict) -> str:
+    """Generate volume outline prompt and save to file"""
+    if not cli.is_json_mode():
+        cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
+        cli.print_out(f"  {cli.c(f'[OUTLINE] Generating Volume {volume_num} Outline Prompt', cli.Colors.BOLD)}")
+        cli.print_out(f"{cli.c('═' * 60, cli.Colors.CYAN)}\n")
+
+    prompt = build_volume_outline_prompt(volume_num, paths)
+    prompt_path = paths['prompts'] / f'volume-{volume_num:03d}-outline-prompt.md'
+
+    json_data = {
+        'success': True,
+        'volume': volume_num,
+        'prompt_path': str(prompt_path),
+        'prompt_content': prompt
+    }
+
+    save_and_output_prompt(prompt, prompt_path, json_data, "Volume outline prompt generated!")
+
     return prompt
 
 
-def generate_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict) -> str:
+def generate_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: dict) -> str:
     """Generate chapter outline prompt and save to file"""
     if not cli.is_json_mode():
         cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")
@@ -279,32 +282,18 @@ def generate_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: di
     if not volume:
         cli.error_message(f"Volume {volume_num} not found. Run 'story plan volume {volume_num}' first.")
 
-    prompt = build_chapter_outline_prompt(volume_num, chapter_num, paths, config)
-
-    # Save prompt to file
+    prompt = build_chapter_outline_prompt(volume_num, chapter_num, paths)
     prompt_path = paths['prompts'] / f'chapter-{chapter_num:03d}-outline-prompt.md'
-    with open(prompt_path, 'w', encoding='utf-8') as f:
-        f.write(prompt)
 
-    # Output result
-    if cli.is_json_mode():
-        cli.output_json({
-            'success': True,
-            'chapter': chapter_num,
-            'volume': volume_num,
-            'prompt_path': str(prompt_path),
-            'prompt_content': prompt
-        })
-    else:
-        cli.print_out(f"  {cli.c('✓ Chapter outline prompt generated!', cli.Colors.GREEN)}")
-        cli.print_out(f"  Saved to: {prompt_path}")
+    json_data = {
+        'success': True,
+        'chapter': chapter_num,
+        'volume': volume_num,
+        'prompt_path': str(prompt_path),
+        'prompt_content': prompt
+    }
 
-        # Also show a preview
-        cli.print_out(f"\n{cli.c('--- Prompt Preview ---', cli.Colors.BOLD)}")
-        lines = prompt.split('\n')[:30]
-        cli.print_out('\n'.join(lines))
-        if len(lines) < len(prompt.split('\n')):
-            cli.print_out("... (truncated, see full file)")
+    save_and_output_prompt(prompt, prompt_path, json_data, "Chapter outline prompt generated!")
 
     return prompt
 
@@ -470,7 +459,7 @@ def main():
             return
         try:
             if prompt_only:
-                generate_volume_outline_prompt(volume_num, paths, config)
+                generate_volume_outline_prompt(volume_num, paths)
             else:
                 plan_volume(volume_num, paths, config, no_timeline)
         except ValueError:
@@ -481,7 +470,7 @@ def main():
             return
         try:
             if prompt_only:
-                generate_chapter_outline_prompt(volume_num, chapter_num, paths, config)
+                generate_chapter_outline_prompt(volume_num, chapter_num, paths)
             else:
                 plan_chapter(volume_num, chapter_num, paths)
         except ValueError:
