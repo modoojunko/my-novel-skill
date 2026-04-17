@@ -11,6 +11,7 @@ Supports both interactive and non-interactive modes:
 
 import sys
 import json
+import re
 import shutil
 from pathlib import Path
 from datetime import datetime
@@ -50,14 +51,22 @@ def backup_old_files(root: Path, dry_run: bool = False) -> Path:
 
 def load_old_volume_outline(outline_dir: Path, volume_num: int) -> Optional[Dict[str, Any]]:
     """Load old-style volume outline"""
-    vol_file = outline_dir / f'volume-{volume_num:03d}.yaml'
-    if not vol_file.exists():
-        vol_file = outline_dir / f'volume-{volume_num:03d}.json'
-    if not vol_file.exists():
-        return None
+    return _load_yaml_or_json(outline_dir / f'volume-{volume_num:03d}.yaml')
 
-    with open(vol_file, 'r', encoding='utf-8') as f:
-        if vol_file.suffix == '.yaml':
+
+def _load_yaml_or_json(file_path: Path) -> Optional[Dict[str, Any]]:
+    """Helper to load either YAML or JSON file"""
+    if not file_path.exists():
+        # Try with other extension
+        if file_path.suffix == '.yaml':
+            file_path = file_path.with_suffix('.json')
+        else:
+            file_path = file_path.with_suffix('.yaml')
+        if not file_path.exists():
+            return None
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        if file_path.suffix == '.yaml':
             try:
                 import yaml
                 return yaml.safe_load(f) or {}
@@ -78,19 +87,50 @@ def load_old_world_data(world_dir: Path) -> Dict[str, Any]:
     }
 
     # Load basic
-    basic_file = world_dir / 'basic.yaml'
-    if not basic_file.exists():
-        basic_file = world_dir / 'basic.json'
-    if basic_file.exists():
-        with open(basic_file, 'r', encoding='utf-8') as f:
-            if basic_file.suffix == '.yaml':
-                try:
-                    import yaml
-                    world_data['basic'] = yaml.safe_load(f) or {}
-                except ImportError:
-                    pass
-            else:
-                world_data['basic'] = json.load(f)
+    basic_data = _load_yaml_or_json(world_dir / 'basic.yaml')
+    if basic_data:
+        world_data['basic'] = basic_data
+
+    # Load history
+    history_data = _load_yaml_or_json(world_dir / 'history.yaml')
+    if history_data:
+        world_data['history'] = history_data
+
+    # Load factions from directory
+    factions_dir = world_dir / 'factions'
+    if factions_dir.exists():
+        for faction_file in factions_dir.glob('*.yaml'):
+            faction_data = _load_yaml_or_json(faction_file)
+            if faction_data:
+                name = faction_file.stem
+                world_data['factions'][name] = faction_data
+
+    # Load powers from directory
+    powers_dir = world_dir / 'powers'
+    if powers_dir.exists():
+        for power_file in powers_dir.glob('*.yaml'):
+            power_data = _load_yaml_or_json(power_file)
+            if power_data:
+                name = power_file.stem
+                world_data['powers'][name] = power_data
+
+    # Load organizations from directory
+    orgs_dir = world_dir / 'organizations'
+    if orgs_dir.exists():
+        for org_file in orgs_dir.glob('*.yaml'):
+            org_data = _load_yaml_or_json(org_file)
+            if org_data:
+                name = org_file.stem
+                world_data['organizations'][name] = org_data
+
+    # Load locations from directory
+    locations_dir = world_dir / 'locations'
+    if locations_dir.exists():
+        for loc_file in locations_dir.glob('*.yaml'):
+            loc_data = _load_yaml_or_json(loc_file)
+            if loc_data:
+                name = loc_file.stem
+                world_data['locations'][name] = loc_data
 
     return world_data
 
@@ -140,9 +180,15 @@ def migrate_project(root: Path, dry_run: bool = False) -> Dict[str, Any]:
     config['outlines'] = {'volumes': {}}
     if outline_dir.exists():
         # Scan for volume files
+        import re
         for vol_file in outline_dir.glob('volume-*.yaml'):
-            # Extract volume number
-            pass  # TODO: implement
+            # Extract volume number from filename
+            match = re.search(r'volume-(\d+)\.yaml', vol_file.name)
+            if match:
+                vol_num = int(match.group(1))
+                vol_data = load_old_volume_outline(outline_dir, vol_num)
+                if vol_data:
+                    config['outlines']['volumes'][str(vol_num)] = vol_data
 
     # Update meta
     config['meta'] = config.get('meta', {})
