@@ -122,14 +122,16 @@ story status                # ❌ 错误！默认是交互模式
 4. world basic —— 设定世界观基础
 
 【第二阶段：第 N 卷规划（每卷开始前做）】
-5. plan volume N —— 规划第 N 卷
-6. plan chapter N M —— 规划第 M 章
+5. plan volume N --prompt —— 生成第 N 卷大纲提示词（可选，AI辅助生成）
+6. plan volume N —— 规划第 N 卷（或使用 AI 生成的大纲）
+7. plan chapter N M --prompt —— 生成第 M 章大纲提示词（可选，AI辅助生成）
+8. plan chapter N M —— 规划第 M 章（或使用 AI 生成的大纲）
 
 【第三阶段：每章写作（循环）】
-7. write M --prompt —— 生成第 M 章提示词
-8. 子 Agent 写正文
-9. verify M —— 验证章节是否符合大纲
-10. archive M —— 归档第 M 章
+9. write M --prompt —— 生成第 M 章提示词
+10. 子 Agent 写正文
+11. verify M —— 验证章节是否符合大纲
+12. archive M —— 归档第 M 章
 
 【第四阶段：发布（可选）】
 11. publish M feishu —— 发布第 M 章到飞书
@@ -145,7 +147,9 @@ story status                # ❌ 错误！默认是交互模式
 | `story collect <target>` | 收集信息（core, protagonist, volume <num>） |
 | `story world <target>` | 世界观管理（basic, faction, history, power, organization, location, list） |
 | `story plan volume <num>` | 规划卷大纲 |
+| `story plan volume <num> --prompt` | 生成卷大纲 AI 提示词 |
 | `story plan chapter <vol> <num>` | 规划章节大纲 |
+| `story plan chapter <vol> <num> --prompt` | 生成章节大纲 AI 提示词 |
 | `story write <num> --prompt` | 生成章节提示词 |
 | `story verify <num>` | 验证章节是否符合大纲 |
 | `story archive <num>` | 归档已完成章节 |

@@ -61,6 +61,15 @@
 
 ---
 
+### 8️⃣ 大纲生成太费劲？
+**问题**：要手动写完整的 YAML 格式大纲，既要想内容又要注意格式
+**解决方案**：
+- ✅ **AI 辅助大纲生成** - 思路讨论 → 提示词生成 → subagent 写大纲
+- ✅ **--prompt 选项** - `story plan volume <num> --prompt` 和 `story plan chapter <vol> <num> --prompt` 自动生成详细提示词
+- ✅ **包含完整上下文** - 提示词包含小说核心信息、前一卷/前一章大纲、格式要求、写作指导
+
+---
+
 ## 🤖 给 Agent 的指令（重要！）
 
 这是 my-novel-skill 仓库，一个 AI 辅助小说写作工作流。
@@ -228,7 +237,9 @@ python /path/to/my-novel-skill/story.py status --non-interactive --json
 | `story world location <name>` | 设定地点 |
 | `story world list` | 列出所有世界观设定 |
 | `story plan volume <num>` | 规划卷大纲 |
+| `story plan volume <num> --prompt` | 生成卷大纲 AI 提示词 |
 | `story plan chapter <vol> <num>` | 规划章节大纲 |
+| `story plan chapter <vol> <num> --prompt` | 生成章节大纲 AI 提示词 |
 | `story write <num> --prompt` | 生成章节提示词 |
 | `story verify <num>` | 验证章节是否符合大纲 |
 | `story archive <num>` | 归档已完成章节 |
