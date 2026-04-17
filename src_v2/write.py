@@ -12,7 +12,7 @@ Supports both interactive and non-interactive modes:
 import sys
 import argparse
 from pathlib import Path
-from .paths import find_project_root, load_config, load_project_paths
+from .paths import find_project_root, load_config, load_project_paths, get_volume_prompts_dir
 from .prompt import build_writing_prompt
 from .progress import (
     load_progress, save_progress,
@@ -39,7 +39,8 @@ def generate_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict
     prompt = build_writing_prompt(paths, volume_num, chapter_num, config)
 
     # Save prompt to file
-    prompt_path = paths['prompts'] / f'chapter-{chapter_num:03d}-prompt.md'
+    vol_prompts_dir = get_volume_prompts_dir(paths, volume_num)
+    prompt_path = vol_prompts_dir / f'chapter-{chapter_num:03d}-prompt.md'
     with open(prompt_path, 'w', encoding='utf-8') as f:
         f.write(prompt)
 
