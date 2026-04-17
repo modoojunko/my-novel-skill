@@ -178,9 +178,6 @@ def main():
     save_config(root, config)
     paths = load_project_paths(root)
 
-    # Create initial templates (minimal)
-    _create_default_templates(paths)
-
     # Create initial world.yaml
     _create_initial_world_yaml(paths)
 
