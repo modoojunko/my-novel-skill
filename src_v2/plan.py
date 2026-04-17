@@ -13,7 +13,7 @@ import sys
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
-from .paths import find_project_root, load_config, load_project_paths
+from .paths import find_project_root, load_config, load_project_paths, get_volume_prompts_dir
 from .templates import ensure_default_templates
 from .prompt import load_core_info
 from .outline import (
@@ -256,7 +256,8 @@ def generate_volume_outline_prompt(volume_num: int, paths: Dict[str, Any]) -> st
         cli.print_out(f"{cli.c('═' * 60, cli.Colors.CYAN)}\n")
 
     prompt = build_volume_outline_prompt(volume_num, paths)
-    prompt_path = paths['prompts'] / f'volume-{volume_num:03d}-outline-prompt.md'
+    vol_prompts_dir = get_volume_prompts_dir(paths, volume_num)
+    prompt_path = vol_prompts_dir / f'volume-{volume_num:03d}-outline-prompt.md'
 
     json_data = {
         'success': True,
@@ -284,7 +285,8 @@ def generate_chapter_outline_prompt(volume_num: int, chapter_num: int, paths: Di
         cli.error_message(f"Volume {volume_num} not found. Run 'story plan volume {volume_num}' first.")
 
     prompt = build_chapter_outline_prompt(volume_num, chapter_num, paths)
-    prompt_path = paths['prompts'] / f'chapter-{chapter_num:03d}-outline-prompt.md'
+    vol_prompts_dir = get_volume_prompts_dir(paths, volume_num)
+    prompt_path = vol_prompts_dir / f'chapter-{chapter_num:03d}-outline-prompt.md'
 
     json_data = {
         'success': True,

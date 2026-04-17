@@ -160,3 +160,11 @@ def get_chapter_path(paths: Dict[str, Path], chapter_num: int,
     elif file_type == 'tasks':
         return vol_dir / f'{ch_name}.tasks.md'
     return vol_dir / f'{ch_name}.yaml'
+
+
+def get_volume_prompts_dir(paths: Dict[str, Path], volume_num: int) -> Path:
+    """Get volume prompts directory path, creates it if it doesn't exist"""
+    vol_name = f'volume-{volume_num:03d}'
+    vol_prompts_dir = paths['prompts'] / vol_name
+    vol_prompts_dir.mkdir(parents=True, exist_ok=True)
+    return vol_prompts_dir
