@@ -1,6 +1,6 @@
 ---
 name: my-novel-v2
-description: 所有小说创作相关操作必须通过此 skill 处理，包括：项目初始化、信息收集、世界观设定、大纲规划、提示词生成、章节写作、验证归档、多平台发布、GitHub Issue 管理等。触发场景：用户要求写小说、创建小说项目、收集小说核心信息、创建主角设定、设定世界观基础、设定势力/历史/力量体系/组织/地点、规划卷大纲、规划章节大纲、生成章节写作提示词、写章节正文、验证章节是否符合大纲、归档已完成章节、导出小说、发布章节到飞书/知乎/起点等平台、查看小说进度、检查发布状态、第X章、卷大纲、章节大纲、story.yaml、process/、output/、以及任何需要使用 my-novel-skill 工具的小说创作任务或讨论小说项目文件的操作。
+description: 所有小说创作相关操作必须通过此 skill 处理，包括：项目初始化、信息收集、世界观设定、提示词生成、章节写作、验证归档、多平台发布、GitHub Issue 管理等。触发场景：用户要求写小说、创建小说项目、收集小说核心信息、创建主角设定、设定世界观基础、设定势力/历史/力量体系/组织/地点、生成章节写作提示词、写章节正文、验证章节是否符合大纲、归档已完成章节、导出小说、发布章节到飞书/知乎/起点等平台、查看小说进度、检查发布状态、第X章、卷大纲、章节大纲、story.yaml、process/、output/、以及任何需要使用 my-novel-skill 工具的小说创作任务或讨论小说项目文件的操作。
 ---
 
 # my-novel-v2 -- AI 辅助小说写作工作流（简化版）
@@ -40,7 +40,7 @@ description: 所有小说创作相关操作必须通过此 skill 处理，包括
 1. **主 Agent + 子 Agent 分离**：主 Agent 负责收集信息和生成提示词，子 Agent 负责写正文
 2. **三目录设计**：
    - `project_root`: story.yaml（配置文件）
-   - `process/`: 过程管理产物（INFO, OUTLINE, PROMPTS, TEMPLATES）
+   - `process/`: 过程管理产物（INFO, OUTLINE, PROMPTS）
    - `output/`: 最终正文（CONTENT, EXPORT, ARCHIVE）
 3. **零依赖**：仅使用 Python 标准库，yaml 可选（json 自动降级）
 4. **写一卷规划一卷**：渐进式创作，避免前期负担过重
@@ -75,9 +75,9 @@ story init --non-interactive --json --args '{"title":"我的小说","genre":"玄
 story collect core --non-interactive --json --args '{"title":"小说标题","genre":"玄幻","description":"小说描述"}'
 ```
 
-**规划卷纲：**
+**迁移旧项目：**
 ```bash
-story plan volume 1 --non-interactive --json
+story migrate --non-interactive --json
 ```
 
 **生成提示词：**
@@ -122,10 +122,7 @@ story status                # ❌ 错误！默认是交互模式
 4. world basic —— 设定世界观基础
 
 【第二阶段：第 N 卷规划（每卷开始前做）】
-5. plan volume N --prompt —— 生成第 N 卷大纲提示词（可选，AI辅助生成）
-6. plan volume N —— 规划第 N 卷（或使用 AI 生成的大纲）
-7. plan chapter N M --prompt —— 生成第 M 章大纲提示词（可选，AI辅助生成）
-8. plan chapter N M —— 规划第 M 章（或使用 AI 生成的大纲）
+5. （直接在 story.yaml 中编辑卷纲和章节大纲）
 
 【第三阶段：每章写作（循环）】
 9. write M --prompt —— 生成第 M 章提示词
@@ -146,16 +143,13 @@ story status                # ❌ 错误！默认是交互模式
 | `story status` | 查看项目状态 |
 | `story collect <target>` | 收集信息（core, protagonist, volume <num>） |
 | `story world <target>` | 世界观管理（basic, faction, history, power, organization, location, list） |
-| `story plan volume <num>` | 规划卷大纲 |
-| `story plan volume <num> --prompt` | 生成卷大纲 AI 提示词 |
-| `story plan chapter <vol> <num>` | 规划章节大纲 |
-| `story plan chapter <vol> <num> --prompt` | 生成章节大纲 AI 提示词 |
 | `story write <num> --prompt` | 生成章节提示词 |
 | `story verify <num>` | 验证章节是否符合大纲 |
 | `story archive <num>` | 归档已完成章节 |
 | `story export` | 导出小说 |
 | `story github <subcommand>` | GitHub Issue 管理 |
 | `story publish <target> <platform>` | 发布章节到平台（check, status, <chapter>, all） |
+| `story migrate` | 迁移旧项目结构到新格式 |
 
 ## 目录结构速查（v2）
 
@@ -184,9 +178,6 @@ story status                # ❌ 错误！默认是交互模式
         snapshots/                   # 章节设定快照
     PROMPTS/                        # 生成的提示词
       chapter-001-prompt.md
-    TEMPLATES/                      # 提示词模板
-      collect/                       # 收集阶段的问题模板
-      expand/                        # 扩写阶段的提示词模板
     progress.yaml                   # 统一进度管理
   output/                           # 最终正文、归档
     CONTENT/

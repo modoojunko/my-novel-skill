@@ -61,15 +61,6 @@
 
 ---
 
-### 8️⃣ 大纲生成太费劲？
-**问题**：要手动写完整的 YAML 格式大纲，既要想内容又要注意格式
-**解决方案**：
-- ✅ **AI 辅助大纲生成** - 思路讨论 → 提示词生成 → subagent 写大纲
-- ✅ **--prompt 选项** - `story plan volume <num> --prompt` 和 `story plan chapter <vol> <num> --prompt` 自动生成详细提示词
-- ✅ **包含完整上下文** - 提示词包含小说核心信息、前一卷/前一章大纲、格式要求、写作指导
-
----
-
 ## 🤖 给 Agent 的指令（重要！）
 
 这是 my-novel-skill 仓库，一个 AI 辅助小说写作工作流。
@@ -118,7 +109,6 @@ python story.py init --non-interactive --json --args '{"title":"小说标题","g
 | 📝 项目管理 | 初始化项目、查看写作进度 |
 | 🎭 角色创建 | 主角、配角，完整的六层认知模型 |
 | 🌍 世界观设定 | 势力、历史、力量体系、组织、地点 |
-| 📋 大纲规划 | 卷纲、章节纲，写一卷规划一卷 |
 | ✍️ 写作辅助 | 生成章节提示词、验证章节内容 |
 | 📦 定稿归档 | 管理已完成章节 |
 | 🚀 多平台发布 | 飞书文档等平台一键发布 |
@@ -189,6 +179,7 @@ Agent：没问题，这就发布...
 - ✅ **完整世界观框架** - faction/history/power/organization/location
 - ✅ **章节验证** - 确保章节符合大纲要求
 - ✅ **多平台发布** - 支持发布到飞书文档等平台
+- ✅ **迁移工具** - 支持从旧项目结构迁移
 
 ### 作为 Claude Skill 使用
 
@@ -236,10 +227,6 @@ python /path/to/my-novel-skill/story.py status --non-interactive --json
 | `story world organization <name>` | 设定组织 |
 | `story world location <name>` | 设定地点 |
 | `story world list` | 列出所有世界观设定 |
-| `story plan volume <num>` | 规划卷大纲 |
-| `story plan volume <num> --prompt` | 生成卷大纲 AI 提示词 |
-| `story plan chapter <vol> <num>` | 规划章节大纲 |
-| `story plan chapter <vol> <num> --prompt` | 生成章节大纲 AI 提示词 |
 | `story write <num> --prompt` | 生成章节提示词 |
 | `story verify <num>` | 验证章节是否符合大纲 |
 | `story archive <num>` | 归档已完成章节 |
@@ -249,6 +236,7 @@ python /path/to/my-novel-skill/story.py status --non-interactive --json
 | `story publish <chapter> <platform>` | 发布单章到指定平台 |
 | `story publish all <platform>` | 发布所有未发布章节 |
 | `story github <subcommand>` | GitHub Issue 管理 |
+| `story migrate` | 迁移旧项目结构到新格式 |
 
 ### 多平台发布
 
@@ -297,7 +285,6 @@ story publish status
 │   │   ├── volume-001.yaml       # 卷大纲
 │   │   └── volume-001/           # 章节大纲 + 快照
 │   ├── PROMPTS/                  # 生成的提示词
-│   └── TEMPLATES/                # 提示词模板
 └── output/                       # 最终正文
     ├── CONTENT/                  # 小说正文
     ├── EXPORT/                   # 导出文件
@@ -342,7 +329,7 @@ my-novel-v2 是对原 my-novel-skill 的完全重写：
 | 特性 | v1 | v2 |
 |------|-----|-----|
 | 架构 | 单 Agent | 主 Agent + 子 Agent |
-| 目录 | 单目录混合 | 三目录分离（process/output/templates） |
+| 目录 | 单目录混合 | 三目录分离（process/output） |
 | 数据格式 | JSON + Markdown | 全 YAML（JSON 降级） |
 | 角色系统 | 基础设定 | 六层认知模型 |
 | 提示词 | 简单组合 | 分层智能摘要 |

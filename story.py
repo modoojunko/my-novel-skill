@@ -9,7 +9,7 @@ from pathlib import Path
 # Add src_v2 to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src_v2 import init, paths, status, collect, plan, write, archive, export, world, verify, github, publish
+from src_v2 import init, paths, status, collect, write, archive, export, world, verify, github, publish, migrate
 
 
 def show_help():
@@ -21,13 +21,13 @@ Commands:
   status      Show project status
   collect     Collect information (core, protagonist, etc.)
   world       Manage world building (basic, faction, history, power, etc.)
-  plan        Plan outline (volume, chapter)
   write       Generate chapter prompt / write
   verify      Verify that chapter follows the prompt
   archive     Archive completed chapter
   export      Export novel
   github      GitHub Issue 查阅和创建 (check, list, view, create, bug, feature)
   publish     Publish chapters to platforms (check, status, <chapter>, all)
+  migrate     Migrate old project structure to new format
 
 Use 'story <command> --help' for more info.
 """)
@@ -56,13 +56,13 @@ def main():
         'status': status,
         'collect': collect,
         'world': world,
-        'plan': plan,
         'write': write,
         'verify': verify,
         'archive': archive,
         'export': export,
         'github': github,
         'publish': publish,
+        'migrate': migrate,
     }
 
     if cmd in commands:
