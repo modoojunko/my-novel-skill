@@ -1,6 +1,7 @@
 """
 GitHub Issue 管理模块
 为 my-novel-skill 提供 GitHub Issue 提交和查阅功能
+注意：所有操作仅针对 https://github.com/modoojunko/my-novel-skill 仓库
 
 Supports both interactive and non-interactive modes:
 - Interactive: `story github <subcommand>` (normal output)
@@ -66,11 +67,14 @@ def check_gh_auth():
         return False, None
 
 
+TARGET_REPO = "modoojunko/my-novel-skill"
+
+
 def run_gh_command(args, check=True):
-    """运行 GitHub CLI 命令"""
+    """运行 GitHub CLI 命令（指定仓库）"""
     try:
         result = subprocess.run(
-            ["gh"] + args,
+            ["gh", "-R", TARGET_REPO] + args,
             capture_output=True,
             text=True,
             check=check

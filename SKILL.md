@@ -355,10 +355,10 @@ my-novel-skill 集成了 GitHub Issue 查阅和创建功能，可以直接通过
 **Bug 反馈示例：**
 ```bash
 story github bug \
-  --title "story plan 命令执行出错" \
-  --description "使用 story plan 命令时出现错误" \
-  --steps "1. 执行 story plan chapter 1 2\n2. ..." \
-  --expected "正常生成章节大纲" \
+  --title "story write 命令执行出错" \
+  --description "使用 story write 命令时出现错误" \
+  --steps "1. 执行 story write 1 --prompt\n2. ..." \
+  --expected "正常生成章节提示词" \
   --actual "报错退出" \
   --error-message "[粘贴错误信息]"
 ```
