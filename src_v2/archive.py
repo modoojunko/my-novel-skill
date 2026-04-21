@@ -95,8 +95,8 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
             chapter_content, chapter_num, volume_num, paths, config
         )
 
-        # Save check results
-        check_path = snapshots_dir / f'chapter-{chapter_num:03d}-check.yaml'
+        # Save check results - check files use chapter-in-volume numbering too
+        check_path = snapshots_dir / f'chapter-{chapter_in_volume:03d}-check.yaml'
         save_yaml(check_path, check_results)
 
         # Display report
