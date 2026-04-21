@@ -117,13 +117,24 @@ def load_world_specs(world_path: Path) -> Optional[Dict[str, Any]]:
     """
     加载世界观设定。
 
+    Args:
+        world_path: Path to INFO/world/ directory OR basic.yaml file
+
     Returns:
         世界观设定 dict，优先用 full，没有则用 core
     """
-    if not world_path.exists():
-        return None
+    # If world_path is a directory, try to load basic.yaml
+    if world_path.is_dir():
+        world_file = world_path / 'basic.yaml'
+        if not world_file.exists():
+            return None
+        world_data = load_yaml(world_file)
+    else:
+        # If it's a file, load directly
+        if not world_path.exists():
+            return None
+        world_data = load_yaml(world_path)
 
-    world_data = load_yaml(world_path)
     if not world_data:
         return None
 

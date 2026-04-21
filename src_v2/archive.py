@@ -72,9 +72,12 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
     # Run consistency checks unless skipped
     check_results = None
     if not skip_consistency:
-        # Load chapter content
+        # Load chapter content - content files use chapter-in-volume numbering
+        structure = config.get('structure', {})
+        chapters_per_volume = structure.get('chapters_per_volume', 30)
+        chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
         vol_name = f'volume-{volume_num:03d}'
-        ch_name = f'chapter-{chapter_num:03d}'
+        ch_name = f'chapter-{chapter_in_volume:03d}'
         chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
 
         chapter_content = ''
@@ -114,9 +117,12 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
         if not has_errors:
             print(f"\n  {c('✓ 检查通过，继续归档...', Colors.GREEN)}")
 
-    # Find chapter file
+    # Find chapter file - content files use chapter-in-volume numbering
+    structure = config.get('structure', {})
+    chapters_per_volume = structure.get('chapters_per_volume', 30)
+    chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
     vol_name = f'volume-{volume_num:03d}'
-    ch_name = f'chapter-{chapter_num:03d}'
+    ch_name = f'chapter-{chapter_in_volume:03d}'
     chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
 
     if not chapter_file.exists():
