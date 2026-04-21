@@ -357,7 +357,8 @@ def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
 def build_writing_prompt(
     paths: Dict[str, Any],
     volume_num: int,
-    chapter_num: int,
+    chapter_in_volume: int,
+    chapter_global_num: int,
     config: Dict[str, Any],
 ) -> str:
     """
@@ -368,7 +369,7 @@ def build_writing_prompt(
     L2: Useful - Other main cast, chapters 4-10 (~20%)
     L3: Optional - Earlier chapters, world details (~20%)
     """
-    prompt = f"# 第{chapter_num}章写作任务\n\n"
+    prompt = f"# 第{chapter_global_num}章写作任务\n\n"
 
     # ========== MANDATORY REQUIREMENTS ==========
     prompt += "## 写作要求（必须遵守）\n"
@@ -465,7 +466,7 @@ def build_writing_prompt(
         if volume_outline:
             timeline = volume_outline.get('timeline', {})
             if timeline and timeline.get('enabled', False):
-                date_anchor = generate_date_anchor_prompt(timeline, chapter_num, show_prev_next)
+                date_anchor = generate_date_anchor_prompt(timeline, chapter_global_num, show_prev_next)
                 prompt += date_anchor
 
     # ========== ANTI-REPETITION CHECK ==========
@@ -486,7 +487,7 @@ def build_writing_prompt(
         scenes = extract_scenes_from_snapshots(
             snapshots_dir,
             volume_num,
-            chapter_num,
+            chapter_global_num,
             lookback
         )
 
@@ -495,7 +496,7 @@ def build_writing_prompt(
             forbidden_list = generate_forbidden_list(scenes)
 
             # Get chapter outline
-            chapter_outline = load_chapter_outline(paths['outline'], volume_num, chapter_num)
+            chapter_outline = load_chapter_outline(paths['outline'], volume_num, chapter_in_volume)
 
             # Generate suggestions
             suggestions = generate_suggested_scenes(
@@ -515,7 +516,7 @@ def build_writing_prompt(
             prompt += anti_repeat_section
 
     # ========== L0: Chapter info (MUST HAVE - smart summary) ==========
-    chapter = load_chapter_outline(paths['outline'], volume_num, chapter_num)
+    chapter = load_chapter_outline(paths['outline'], volume_num, chapter_in_volume)
     if chapter:
         prompt += "## [L0] 本章信息（必须）\n"
         prompt += summarize_chapter_outline(chapter, 'full')
@@ -529,7 +530,7 @@ def build_writing_prompt(
         prompt += "\n\n"
 
     # Final reminder
-    prompt += "现在开始写第 {} 章正文，直接从正文第一句开始写。\n".format(chapter_num)
+    prompt += "现在开始写第 {} 章正文，直接从正文第一句开始写。\n".format(chapter_global_num)
 
     return prompt
 

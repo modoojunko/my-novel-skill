@@ -175,18 +175,23 @@ def main():
     config = load_config(root)
     paths = load_project_paths(root)
 
+    # Get chapter structure config
+    structure = config.get('structure', {})
+    chapters_per_volume = structure.get('chapters_per_volume', 30)
+
     # Auto-detect volume if not given
     if volume_num is None:
-        structure = config.get('structure', {})
-        chapters_per_volume = structure.get('chapters_per_volume', 30)
         volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
+
+    # Calculate chapter number within volume
+    chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
 
     # Get paths
     content_dir = paths['content'] / f'volume-{volume_num:03d}'
     content_path = content_dir / f'chapter-{chapter_num:03d}.md'
 
-    # Load chapter outline
-    chapter_outline = load_chapter_outline(paths['outline'], volume_num, chapter_num)
+    # Load chapter outline (using chapter-in-volume number)
+    chapter_outline = load_chapter_outline(paths['outline'], volume_num, chapter_in_volume)
 
     if not cli.is_json_mode():
         cli.print_out(f"\n{cli.c('═' * 60, cli.Colors.CYAN)}")

@@ -1,11 +1,11 @@
-# install.ps1 - Install my-novel-v2 skill (Windows)
+# install.ps1 - Install my-novel-skill skill (Windows)
 
 param(
     [ValidateSet("workbuddy", "claude", "openclaw", "hermes")]
     [string]$Platform = "workbuddy"
 )
 
-$SkillName = "my-novel-v2"
+$SkillName = "my-novel-skill"
 $ScriptDir = $PSScriptRoot
 
 switch ($Platform) {
@@ -58,7 +58,7 @@ if ($Platform -eq "hermes") {
     $WrapperContent = @"
 @echo off
 REM story.bat - Wrapper for my-novel-skill story.py
-set "SKILL_DIR=%USERPROFILE%\.hermes\skills\my-novel-v2"
+set "SKILL_DIR=%USERPROFILE%\.hermes\skills\my-novel-skill"
 if exist "%SKILL_DIR%\story.py" (
     REM Try python3 first, then python
     where python3 >nul 2>nul

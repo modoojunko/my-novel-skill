@@ -82,8 +82,10 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
             with open(chapter_file, 'r', encoding='utf-8') as f:
                 chapter_content = f.read()
 
-        # Ensure snapshots directory exists
-        paths['snapshots'].mkdir(parents=True, exist_ok=True)
+        # Ensure snapshots directory exists for this volume
+        from .snapshot import get_snapshot_dir
+        snapshots_dir = get_snapshot_dir(paths['outline'], volume_num)
+        snapshots_dir.mkdir(parents=True, exist_ok=True)
 
         # Run checks
         check_results = run_all_consistency_checks(
@@ -91,7 +93,7 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
         )
 
         # Save check results
-        check_path = paths['snapshots'] / f'chapter-{chapter_num:03d}-check.yaml'
+        check_path = snapshots_dir / f'chapter-{chapter_num:03d}-check.yaml'
         save_yaml(check_path, check_results)
 
         # Display report

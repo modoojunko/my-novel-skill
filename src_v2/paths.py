@@ -132,6 +132,7 @@ def load_project_paths(root: Path) -> Dict[str, Path]:
         'world_organizations': process_dir / 'INFO' / 'world' / 'organizations',
         'world_locations': process_dir / 'INFO' / 'world' / 'locations',
         'outline': process_dir / 'OUTLINE',
+        'snapshots': process_dir / 'OUTLINE',
         'prompts': process_dir / 'PROMPTS',
         'templates': get_skill_templates_dir(),
         'content': output_dir / 'CONTENT',
