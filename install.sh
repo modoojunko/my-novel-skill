@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# install.sh - Install my-novel-v2 skill (Linux/macOS)
+# install.sh - Install my-novel-skill skill (Linux/macOS)
 set -euo pipefail
 
 PLATFORM="${1:-workbuddy}"
-SKILL_NAME="my-novel-v2"
+SKILL_NAME="my-novel-skill"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 case "$PLATFORM" in
@@ -51,7 +51,7 @@ if [ "$PLATFORM" = "hermes" ]; then
     cat > "$WRAPPER" << 'EOF'
 #!/usr/bin/env bash
 # story - Wrapper for my-novel-skill story.py
-SKILL_DIR="$HOME/.hermes/skills/my-novel-v2"
+SKILL_DIR="$HOME/.hermes/skills/my-novel-skill"
 if [ -f "$SKILL_DIR/story.py" ]; then
     # Try python3 first, then python
     if command -v python3 &> /dev/null; then

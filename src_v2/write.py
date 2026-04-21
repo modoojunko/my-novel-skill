@@ -36,7 +36,12 @@ def generate_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict
             style['anti_repeat'] = {}
         style['anti_repeat']['enabled'] = False
 
-    prompt = build_writing_prompt(paths, volume_num, chapter_num, config)
+    # Calculate chapter number within volume
+    structure = config.get('structure', {})
+    chapters_per_volume = structure.get('chapters_per_volume', 30)
+    chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
+
+    prompt = build_writing_prompt(paths, volume_num, chapter_in_volume, chapter_num, config)
 
     # Save prompt to file
     vol_prompts_dir = get_volume_prompts_dir(paths, volume_num)

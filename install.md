@@ -1,4 +1,4 @@
-# my-novel-v2 安装指南
+# my-novel-skill 安装指南
 
 ## 前置要求
 
@@ -10,32 +10,32 @@
 ### WorkBuddy
 
 ```bash
-git clone <repository-url> my-novel-v2
-cd my-novel-v2
-mkdir -p ~/.workbuddy/skills/my-novel-v2
-cp SKILL.md ~/.workbuddy/skills/my-novel-v2/
-cp story.py ~/.workbuddy/skills/my-novel-v2/
-cp -r src_v2 ~/.workbuddy/skills/my-novel-v2/src
-cp -r docs ~/.workbuddy/skills/my-novel-v2/docs 2>/dev/null || true
+git clone <repository-url> my-novel-skill
+cd my-novel-skill
+mkdir -p ~/.workbuddy/skills/my-novel-skill
+cp SKILL.md ~/.workbuddy/skills/my-novel-skill/
+cp story.py ~/.workbuddy/skills/my-novel-skill/
+cp -r src_v2 ~/.workbuddy/skills/my-novel-skill/src
+cp -r docs ~/.workbuddy/skills/my-novel-skill/docs 2>/dev/null || true
 ```
 
 ### Claude Code
 
 ```bash
-git clone <repository-url> my-novel-v2
-cd my-novel-v2
-mkdir -p ~/.claude/skills/my-novel-v2
-cp SKILL.md ~/.claude/skills/my-novel-v2/
-cp story.py ~/.claude/skills/my-novel-v2/
-cp -r src_v2 ~/.claude/skills/my-novel-v2/src
-cp -r docs ~/.claude/skills/my-novel-v2/docs 2>/dev/null || true
+git clone <repository-url> my-novel-skill
+cd my-novel-skill
+mkdir -p ~/.claude/skills/my-novel-skill
+cp SKILL.md ~/.claude/skills/my-novel-skill/
+cp story.py ~/.claude/skills/my-novel-skill/
+cp -r src_v2 ~/.claude/skills/my-novel-skill/src
+cp -r docs ~/.claude/skills/my-novel-skill/docs 2>/dev/null || true
 ```
 
 ### Hermes Agent
 
 ```bash
-git clone <repository-url> my-novel-v2
-cd my-novel-v2
+git clone <repository-url> my-novel-skill
+cd my-novel-skill
 ./install.sh hermes
 ```
 
@@ -92,7 +92,7 @@ story export            # 导出小说
 
 ## 零依赖设计
 
-my-novel-v2 仅使用 Python 标准库：
+my-novel-skill 仅使用 Python 标准库：
 - `pathlib` - 路径操作
 - `json` - JSON 读写（默认）
 - `yaml` - 可选，如果安装了 PyYAML 则使用
