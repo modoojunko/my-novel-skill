@@ -39,7 +39,7 @@ def generate_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict
     # Calculate chapter number within volume
     structure = config.get('structure', {})
     chapters_per_volume = structure.get('chapters_per_volume', 30)
-    chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
+    chapter_in_volume: int = ((chapter_num - 1) % chapters_per_volume) + 1
 
     prompt = build_writing_prompt(paths, volume_num, chapter_in_volume, chapter_num, config)
 

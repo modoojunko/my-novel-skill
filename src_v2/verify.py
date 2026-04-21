@@ -175,15 +175,15 @@ def main():
     config = load_config(root)
     paths = load_project_paths(root)
 
+    # Get chapter structure config
+    structure = config.get('structure', {})
+    chapters_per_volume = structure.get('chapters_per_volume', 30)
+
     # Auto-detect volume if not given
     if volume_num is None:
-        structure = config.get('structure', {})
-        chapters_per_volume = structure.get('chapters_per_volume', 30)
         volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
 
     # Calculate chapter number within volume
-    structure = config.get('structure', {})
-    chapters_per_volume = structure.get('chapters_per_volume', 30)
     chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
 
     # Get paths
