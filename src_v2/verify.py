@@ -186,9 +186,9 @@ def main():
     # Calculate chapter number within volume
     chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
 
-    # Get paths
+    # Get paths - content files use chapter-in-volume numbering
     content_dir = paths['content'] / f'volume-{volume_num:03d}'
-    content_path = content_dir / f'chapter-{chapter_num:03d}.md'
+    content_path = content_dir / f'chapter-{chapter_in_volume:03d}.md'
 
     # Load chapter outline (using chapter-in-volume number)
     chapter_outline = load_chapter_outline(paths['outline'], volume_num, chapter_in_volume)
