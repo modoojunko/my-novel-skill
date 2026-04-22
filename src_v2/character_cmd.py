@@ -23,9 +23,6 @@ import argparse
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-# Add src_v2 to path
-sys.path.insert(0, str(Path(__file__).parent))
-
 from src_v2 import paths, cli
 from src_v2 import character_knowledge as ck
 
