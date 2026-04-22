@@ -2,6 +2,7 @@
 GitHub Issue 管理模块
 为 my-novel-skill 提供 GitHub Issue 提交和查阅功能
 注意：所有操作仅针对 https://github.com/modoojunko/my-novel-skill 仓库
+      可以在任何目录下执行，会自动提交到指定仓库
 
 Supports both interactive and non-interactive modes:
 - Interactive: `story github <subcommand>` (normal output)
@@ -21,6 +22,9 @@ from . import cli
 def show_github_help():
     print("""
 Usage: story github <subcommand> [options]
+
+GitHub Issue 管理工具 - 仅用于 modoojunko/my-novel-skill 仓库
+注意：可以在任何目录下执行，会自动提交到指定仓库
 
 Subcommands:
   check     Check GitHub CLI installation and auth status
