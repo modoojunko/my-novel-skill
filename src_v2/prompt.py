@@ -487,9 +487,7 @@ def build_writing_prompt(
         # Extract scenes from previous chapters
         scenes = extract_scenes_from_snapshots(
             paths['outline'],
-            volume_num,
             chapter_global_num,
-            chapter_in_volume,
             chapters_per_volume,
             lookback
         )

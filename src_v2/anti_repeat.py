@@ -41,9 +41,7 @@ def load_yaml(path: Path) -> Optional[Dict[str, Any]]:
 
 def extract_scenes_from_snapshots(
     outline_dir: Path,
-    volume_num: int,
     current_chapter_global: int,
-    chapter_in_volume: int,
     chapters_per_volume: int = 30,
     lookback: int = 5
 ) -> List[Dict[str, Any]]:
@@ -52,9 +50,7 @@ def extract_scenes_from_snapshots(
 
     Args:
         outline_dir: Outline directory (parent of volume-XXX dirs)
-        volume_num: Current volume number
         current_chapter_global: Current global chapter number
-        chapter_in_volume: Current chapter number within volume
         chapters_per_volume: Number of chapters per volume
         lookback: Number of chapters to look back (default: 5)
 
