@@ -15,6 +15,7 @@ from .anti_repeat import (
     build_prompt_section,
 )
 from .timeline import generate_date_anchor_prompt
+from . import character_knowledge as ck
 
 
 class SummaryLevel(Enum):
@@ -519,6 +520,54 @@ def build_writing_prompt(
 
     prompt += "═══════════════════════════════════════════════════════════════\n\n"
 
+    # ========== POV CHARACTER COGNITION CONSTRAINTS ==========
+    chapter = load_chapter_outline(paths['outline'], volume_num, chapter_in_volume)
+    if chapter:
+        chapter_info = chapter.get('chapter_info', {})
+        pov_name = chapter_info.get('pov', '')
+        if pov_name:
+            knowledge_for_prompt = ck.get_character_knowledge_for_prompt(paths['info'], pov_name)
+            if knowledge_for_prompt:
+                prompt += "---\n"
+                prompt += "## 📌 POV 角色认知约束（必须遵守！）\n"
+                prompt += f"**当前 POV: {pov_name}**\n\n"
+
+                knows = knowledge_for_prompt.get('knows', {})
+
+                # Known events
+                events = knows.get('events', [])
+                if events:
+                    prompt += "### 已知事件:\n"
+                    for event in events:
+                        prompt += f"- {event}\n"
+                    prompt += "\n"
+
+                # Known characters
+                characters = knows.get('characters', [])
+                if characters:
+                    prompt += "### 已知人物:\n"
+                    for char in characters:
+                        prompt += f"- {char}\n"
+                    prompt += "\n"
+
+                # Known world
+                world = knows.get('world', [])
+                if world:
+                    prompt += "### 已知事实:\n"
+                    for fact in world:
+                        prompt += f"- {fact}\n"
+                    prompt += "\n"
+
+                # Unaware
+                unaware = knowledge_for_prompt.get('unaware', [])
+                if unaware:
+                    prompt += "### 绝对不能写的内容（角色不知道）:\n"
+                    for item in unaware:
+                        prompt += f"- {item}\n"
+                    prompt += "\n"
+
+                prompt += "---\n\n"
+
     # ========== WRITING PRINCIPLES ==========
     principles_section = load_and_format_writing_principles(paths)
     if principles_section:
@@ -592,7 +641,6 @@ def build_writing_prompt(
             prompt += anti_repeat_section
 
     # ========== L0: Chapter info (MUST HAVE - smart summary) ==========
-    chapter = load_chapter_outline(paths['outline'], volume_num, chapter_in_volume)
     if chapter:
         prompt += "## [L0] 本章信息（必须）\n"
         prompt += summarize_chapter_outline(chapter, 'full')
