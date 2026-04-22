@@ -40,18 +40,22 @@ def load_yaml(path: Path) -> Optional[Dict[str, Any]]:
 
 
 def extract_scenes_from_snapshots(
-    snapshots_dir: Path,
+    outline_dir: Path,
     volume_num: int,
-    current_chapter: int,
+    current_chapter_global: int,
+    chapter_in_volume: int,
+    chapters_per_volume: int = 30,
     lookback: int = 5
 ) -> List[Dict[str, Any]]:
     """
     Extract scenes from previous N chapter snapshots.
 
     Args:
-        snapshots_dir: Directory with snapshots
+        outline_dir: Outline directory (parent of volume-XXX dirs)
         volume_num: Current volume number
-        current_chapter: Current chapter number
+        current_chapter_global: Current global chapter number
+        chapter_in_volume: Current chapter number within volume
+        chapters_per_volume: Number of chapters per volume
         lookback: Number of chapters to look back (default: 5)
 
     Returns:
@@ -64,16 +68,15 @@ def extract_scenes_from_snapshots(
         }
     """
     scenes = []
-    start_chapter = max(1, current_chapter - lookback)
+    start_chapter_global = max(1, current_chapter_global - lookback)
 
-    for ch in range(start_chapter, current_chapter):
-        # Get snapshot path - snapshot is in volume-XXX/snapshots/
-        vol_for_ch = ((ch - 1) // 30) + 1  # Assume 30 chapters per volume if not known
-        snapshot_path = snapshots_dir / f'volume-{vol_for_ch:03d}' / 'snapshots' / f'chapter-{ch:03d}.yaml'
+    for ch_global in range(start_chapter_global, current_chapter_global):
+        # Calculate volume and chapter-in-volume for this chapter
+        vol_for_ch = ((ch_global - 1) // chapters_per_volume) + 1
+        ch_in_vol = ((ch_global - 1) % chapters_per_volume) + 1
 
-        # Also try direct volume directory (in case volume_num is correct)
-        if not snapshot_path.exists() and volume_num:
-            snapshot_path = snapshots_dir / f'volume-{volume_num:03d}' / 'snapshots' / f'chapter-{ch:03d}.yaml'
+        # Get snapshot path - snapshot is in volume-XXX/snapshots/ with chapter-in-volume numbering
+        snapshot_path = outline_dir / f'volume-{vol_for_ch:03d}' / 'snapshots' / f'chapter-{ch_in_vol:03d}.yaml'
 
         if not snapshot_path.exists():
             continue
@@ -85,7 +88,7 @@ def extract_scenes_from_snapshots(
         # Extract events
         for event in snapshot.get('events_happened', []):
             scenes.append({
-                'chapter': ch,
+                'chapter': ch_global,
                 'type': 'event',
                 'content': event,
                 'source': 'events_happened'
@@ -100,7 +103,7 @@ def extract_scenes_from_snapshots(
                 content += f" ({char_role})"
             if content:
                 scenes.append({
-                    'chapter': ch,
+                    'chapter': ch_global,
                     'type': 'character',
                     'content': content,
                     'source': 'characters_introduced'
@@ -109,7 +112,7 @@ def extract_scenes_from_snapshots(
         # Extract info reveals
         for info in snapshot.get('info_revealed', []):
             scenes.append({
-                'chapter': ch,
+                'chapter': ch_global,
                 'type': 'info',
                 'content': info,
                 'source': 'info_revealed'

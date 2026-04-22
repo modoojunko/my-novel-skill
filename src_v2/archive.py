@@ -167,9 +167,9 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
         global_chapter_num = (volume_num - 1) * chapters_per_volume + chapter_num
         status = get_chapter_status(progress, global_chapter_num)
 
-        # Check if chapter file exists
+        # Check if chapter file exists - content files use chapter-in-volume numbering
         vol_name = f'volume-{volume_num:03d}'
-        ch_name = f'chapter-{global_chapter_num:03d}'
+        ch_name = f'chapter-{chapter_num:03d}'
         chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
 
         if chapter_file.exists():

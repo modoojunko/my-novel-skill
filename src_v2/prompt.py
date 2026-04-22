@@ -480,14 +480,17 @@ def build_writing_prompt(
         max_suggestions = anti_repeat_config.get('max_suggestions', 5)
         heuristics = anti_repeat_config.get('heuristics', None)
 
-        # Get snapshot directory from outline dir
-        snapshots_dir = paths['outline']
+        # Get chapters per volume from config
+        structure = config.get('structure', {})
+        chapters_per_volume = structure.get('chapters_per_volume', 30)
 
         # Extract scenes from previous chapters
         scenes = extract_scenes_from_snapshots(
-            snapshots_dir,
+            paths['outline'],
             volume_num,
             chapter_global_num,
+            chapter_in_volume,
+            chapters_per_volume,
             lookback
         )
 
