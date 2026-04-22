@@ -22,6 +22,25 @@ def get_skill_templates_dir() -> Path:
     return skill_root / 'templates'
 
 
+def get_skill_root_dir() -> Path:
+    """Get skill root directory (inside the skill installation, not user project)"""
+    # Get the directory of this file (paths.py), which is in src_v2/
+    this_file = Path(__file__)
+    return this_file.parent.parent
+
+
+def get_writing_principles_template_path() -> Path:
+    """Get writing principles template path from skill directory"""
+    return get_skill_root_dir() / 'skills' / 'writing-principles.yaml'
+
+
+def get_project_writing_principles_path(process_dir: Path) -> Path:
+    """Get project-specific writing principles path"""
+    templates_dir = process_dir / 'TEMPLATES'
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    return templates_dir / 'writing-principles.yaml'
+
+
 def find_project_root(start: Optional[Path] = None) -> Optional[Path]:
     """Check current directory for story.yaml (or story.json/story.yml for backward compatibility)"""
     if start is None:

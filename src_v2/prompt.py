@@ -7,7 +7,7 @@ prompt - Smart prompt generation with layered summarization
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from enum import Enum
-from .paths import load_project_paths
+from .paths import load_project_paths, get_project_writing_principles_path
 from .anti_repeat import (
     extract_scenes_from_snapshots,
     generate_forbidden_list,
@@ -273,17 +273,17 @@ def get_characters_for_prompt(
 def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
     """
     Load world specs from the new directory structure (Issue #4) and format as prompt section.
-    
+
     Returns:
         Formatted prompt section or None if no world specs
     """
     world_dir = paths.get('world')
     if not world_dir or not world_dir.exists():
         return None
-    
+
     section = "## 🌍 世界观设定（必读）\n\n"
     has_content = False
-    
+
     # Title mapping for display
     titles = {
         'basic': '世界背景',
@@ -293,7 +293,7 @@ def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
         'organizations': '组织',
         'locations': '重要地点',
     }
-    
+
     # 1. Load basic world settings
     basic_path = world_dir / 'basic.yaml'
     if basic_path.exists():
@@ -305,7 +305,7 @@ def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
                     section += f"- {key}: {value}\n"
             section += "\n"
             has_content = True
-    
+
     # 2. Load timeline
     timeline_path = world_dir / 'timeline.yaml'
     if timeline_path.exists():
@@ -317,7 +317,7 @@ def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
                     section += f"- {key}: {value}\n"
             section += "\n"
             has_content = True
-    
+
     # 3. Load multi-file types
     multi_file_types = [
         ('factions', paths.get('world_factions')),
@@ -326,7 +326,7 @@ def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
         ('organizations', paths.get('world_organizations')),
         ('locations', paths.get('world_locations')),
     ]
-    
+
     for type_name, dir_path in multi_file_types:
         if dir_path and dir_path.exists():
             files = list(dir_path.glob('*.yaml'))
@@ -344,13 +344,83 @@ def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
                                 section += f"  - {key}: {value}\n"
                 section += "\n"
                 has_content = True
-    
+
     if not has_content:
         return None
-    
+
     section += "⚠️  要求：本章内容必须严格遵守以上世界观设定！\n\n"
     section += "═══════════════════════════════════════════════════════════════\n\n"
-    
+
+    return section
+
+
+def load_and_format_writing_principles(paths: Dict[str, Any]) -> Optional[str]:
+    """
+    Load writing principles from project templates and format as prompt section.
+
+    Returns:
+        Formatted prompt section or None if no principles
+    """
+    principles_path = get_project_writing_principles_path(paths['process'])
+    if not principles_path.exists():
+        return None
+
+    principles = load_yaml(principles_path)
+    if not principles:
+        return None
+
+    section = "## 📝 写作原则与风格（必读）\n\n"
+    has_content = False
+
+    # Style description
+    style = principles.get('style', {})
+    if style.get('description'):
+        section += "### 整体写作风格\n"
+        section += style['description']
+        section += "\n\n"
+        has_content = True
+
+    # Core principles (sorted by priority)
+    core_principles = principles.get('core_principles', [])
+    if core_principles:
+        section += "### 核心原则（按优先级）\n"
+        # Sort by priority if available
+        sorted_principles = sorted(core_principles, key=lambda p: p.get('priority', 999))
+        for i, principle in enumerate(sorted_principles, 1):
+            name = principle.get('name', f'原则{i}')
+            desc = principle.get('description', '')
+            if desc:
+                section += f"{i}. **{name}**: {desc}\n"
+        section += "\n"
+        has_content = True
+
+    # Techniques
+    techniques = principles.get('techniques', {})
+    for tech_name, tech_config in techniques.items():
+        if tech_config and tech_config.get('enabled', True):
+            guidelines = tech_config.get('guidelines', '')
+            if guidelines:
+                title = tech_name.replace('_', ' ').title()
+                section += f"### {title}\n"
+                section += guidelines
+                section += "\n\n"
+                has_content = True
+
+    # Taboos
+    taboos = principles.get('taboos', [])
+    if taboos:
+        section += "### ❌ 禁止事项\n"
+        for taboo in taboos:
+            section += f"- {taboo}\n"
+        section += "\n"
+        has_content = True
+
+    if not has_content:
+        return None
+
+    section += "⚠️  要求：本章内容必须严格遵守以上写作原则！\n\n"
+    section += "═══════════════════════════════════════════════════════════════\n\n"
+
     return section
 
 
@@ -448,6 +518,11 @@ def build_writing_prompt(
                 prompt += "\n"
 
     prompt += "═══════════════════════════════════════════════════════════════\n\n"
+
+    # ========== WRITING PRINCIPLES ==========
+    principles_section = load_and_format_writing_principles(paths)
+    if principles_section:
+        prompt += principles_section
 
     # ========== WORLD FRAMEWORK ==========
     world_section = load_and_format_world_specs(paths)

@@ -13,7 +13,7 @@ import sys
 import argparse
 from pathlib import Path
 from datetime import datetime
-from .paths import find_project_root, save_config, load_project_paths
+from .paths import find_project_root, save_config, load_project_paths, get_writing_principles_template_path, get_project_writing_principles_path
 from . import cli
 
 
@@ -178,6 +178,9 @@ def main():
     save_config(root, config)
     paths = load_project_paths(root)
 
+    # Copy writing principles template to project
+    _copy_writing_principles_template(paths)
+
     # Create initial world.yaml
     _create_initial_world_yaml(paths)
 
@@ -265,6 +268,16 @@ def _create_initial_world_yaml(paths):
                 yaml.dump(initial_data, f, allow_unicode=True, sort_keys=False)
             else:
                 json.dump(initial_data, f, ensure_ascii=False, indent=2)
+
+
+def _copy_writing_principles_template(paths):
+    """Copy writing principles template to project directory"""
+    template_path = get_writing_principles_template_path()
+    project_path = get_project_writing_principles_path(paths['process'])
+
+    if template_path.exists() and not project_path.exists():
+        import shutil
+        shutil.copy2(template_path, project_path)
 
 
 if __name__ == '__main__':
