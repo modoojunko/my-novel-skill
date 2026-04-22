@@ -180,6 +180,8 @@ Agent：没问题，这就发布...
 - ✅ **章节验证** - 确保章节符合大纲要求
 - ✅ **多平台发布** - 支持发布到飞书文档等平台
 - ✅ **迁移工具** - 支持从旧项目结构迁移
+- ✅ **角色认知管理** - `story character` 命令管理每个角色的POV认知状态，防止OOC
+- ✅ **写作原则配置** - 可配置的写作风格、技巧、禁忌规则，项目初始化时自动复制模板
 
 ### 作为 Claude Skill 使用
 
@@ -227,6 +229,11 @@ python /path/to/my-novel-skill/story.py status --non-interactive --json
 | `story world organization <name>` | 设定组织 |
 | `story world location <name>` | 设定地点 |
 | `story world list` | 列出所有世界观设定 |
+| `story character list` | 列出所有角色及认知状态 |
+| `story character view <角色名>` | 查看单个角色的详细认知 |
+| `story character update <角色名>` | 更新角色认知（--event/--world/--character/--unaware/--relationship/--pov） |
+| `story character check <角色名>` | 检查POV一致性 |
+| `story character export <角色名>` | 导出认知给提示词 |
 | `story write <num> --prompt` | 生成章节提示词 |
 | `story verify <num>` | 验证章节是否符合大纲 |
 | `story archive <num>` | 归档已完成章节 |
@@ -322,21 +329,28 @@ story publish status
 
 不用一开始就想完整本书，先写好第一卷，再规划第二卷。
 
-### 与 v1 的区别
+#### 5. 角色认知管理
 
-my-novel-v2 是对原 my-novel-skill 的完全重写：
+使用 `story character` 命令管理每个角色的 POV 认知状态：
 
-| 特性 | v1 | v2 |
-|------|-----|-----|
-| 架构 | 单 Agent | 主 Agent + 子 Agent |
-| 目录 | 单目录混合 | 三目录分离（process/output） |
-| 数据格式 | JSON + Markdown | 全 YAML（JSON 降级） |
-| 角色系统 | 基础设定 | 六层认知模型 |
-| 提示词 | 简单组合 | 分层智能摘要 |
-| 创作方式 | 一次性规划 | 写一卷规划一卷 |
-| 世界观 | 基础支持 | 完整框架 |
-| 验证 | 无 | 章节验证 |
-| 发布 | 无 | 多平台发布 |
+| 命令 | 功能 |
+|------|------|
+| `story character list` | 列出所有角色及认知状态 |
+| `story character view <角色名>` | 查看单个角色的详细认知 |
+| `story character update <角色名>` | 更新角色认知（--event/--world/--character/--unaware/--relationship/--pov） |
+| `story character check <角色名>` | 检查POV一致性 |
+| `story character export <角色名>` | 导出认知给提示词 |
+
+#### 6. 写作原则配置系统
+
+每个项目都有 `writing-principles.yaml` 配置文件，包含：
+- **核心原则**（按优先级）：客观对待事实、保持逻辑推进、故事自己说话、现实世界素材、内容自由等
+- **写作技巧**：自然表达、描述与描写、禁止俗套比喻、展示而非告知、角色塑造等
+- **禁忌规则**：网络用语、打破第四面墙、OOC行为、机械重复等
+- **字数要求**和**输出格式**配置
+
+配置文件在项目初始化时自动从模板复制，并集成到章节提示词生成中。
+
 
 ### 开发
 
