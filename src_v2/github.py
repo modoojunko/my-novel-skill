@@ -1,8 +1,9 @@
 """
 GitHub Issue 管理模块
 为 my-novel-skill 提供 GitHub Issue 提交和查阅功能
-注意：所有操作仅针对 https://github.com/modoojunko/my-novel-skill 仓库
-      可以在任何目录下执行，会自动提交到指定仓库
+注意：可以在任何目录下执行，会自动提交到指定仓库
+      默认仓库: modoojunko/my-novel-skill
+      可在 story.yaml 中配置 github.repo 自定义仓库
 
 Supports both interactive and non-interactive modes:
 - Interactive: `story github <subcommand>` (normal output)
@@ -15,16 +16,20 @@ import sys
 import subprocess
 import json
 from pathlib import Path
+from typing import Optional, Dict, Any
 
 from . import cli
+from .paths import find_project_root, load_config
 
 
 def show_github_help():
     print("""
 Usage: story github <subcommand> [options]
 
-GitHub Issue 管理工具 - 仅用于 modoojunko/my-novel-skill 仓库
+GitHub Issue 管理工具 - 用于 my-novel-skill 相关仓库
 注意：可以在任何目录下执行，会自动提交到指定仓库
+      默认仓库: modoojunko/my-novel-skill
+      可在 story.yaml 中配置 github.repo 自定义仓库
 
 Subcommands:
   check     Check GitHub CLI installation and auth status
@@ -71,14 +76,26 @@ def check_gh_auth():
         return False, None
 
 
-TARGET_REPO = "modoojunko/my-novel-skill"
+DEFAULT_TARGET_REPO = "modoojunko/my-novel-skill"
+
+
+def get_target_repo() -> str:
+    """Get target GitHub repo from config, or return default"""
+    root = find_project_root()
+    if root:
+        config = load_config(root)
+        github_config = config.get('github', {})
+        if github_config.get('repo'):
+            return github_config['repo']
+    return DEFAULT_TARGET_REPO
 
 
 def run_gh_command(args, check=True):
     """运行 GitHub CLI 命令（指定仓库）"""
+    target_repo = get_target_repo()
     try:
         result = subprocess.run(
-            ["gh", "-R", TARGET_REPO] + args,
+            ["gh", "-R", target_repo] + args,
             capture_output=True,
             text=True,
             check=check
@@ -331,10 +348,21 @@ def main():
                 cli.print_out("请运行 'gh auth login' 完成认证")
             return 1
 
+        target_repo = get_target_repo()
         if cli.is_json_mode():
-            cli.output_json({'success': True, 'installed': True, 'authed': True, 'version': version, 'status': status})
+            cli.output_json({
+                'success': True,
+                'installed': True,
+                'authed': True,
+                'version': version,
+                'status': status,
+                'repo': target_repo
+            })
         else:
             cli.print_out(cli.c("✓ GitHub CLI 已认证", cli.Colors.GREEN))
+            cli.print_out(cli.c(f"目标仓库: {target_repo}", cli.Colors.CYAN))
+            if target_repo == DEFAULT_TARGET_REPO:
+                cli.print_out(cli.c("提示: 可在 story.yaml 中配置 github.repo 来自定义仓库", cli.Colors.YELLOW))
             cli.print_out(status)
         return 0
 

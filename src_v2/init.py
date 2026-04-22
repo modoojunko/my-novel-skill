@@ -172,6 +172,9 @@ def main():
             "process_dir": "process",
             "output_dir": "output",
         },
+        "github": {
+            "repo": "modoojunko/my-novel-skill",
+        },
     }
 
     # Save config and create directories
