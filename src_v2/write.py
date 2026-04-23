@@ -12,7 +12,7 @@ Supports both interactive and non-interactive modes:
 import sys
 import argparse
 from pathlib import Path
-from .paths import find_project_root, load_config, load_project_paths, get_volume_prompts_dir
+from .paths import find_project_root, load_config, load_project_paths, get_volume_prompts_dir, get_volume_and_chapter, get_global_chapter_num, get_chapters_for_volume
 from .prompt import build_writing_prompt
 from .progress import (
     load_progress, save_progress,
@@ -38,11 +38,28 @@ def generate_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict
 
     # Calculate chapter number within volume
     structure = config.get('structure', {})
-    vol_from_chapter, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
-    # If volume_num was provided, we still need to make sure chapter_in_volume is correct
-    if volume_num is not None and volume_num != vol_from_chapter:
-        # Need to calculate chapter_in_volume manually in this edge case
-        pass
+    if volume_num is None:
+        # Auto-detect both volume and chapter-in-volume
+        volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
+    else:
+        # Volume was explicitly provided - calculate chapter_in_volume relative to it
+        # First verify that chapter_num actually falls within the given volume
+        # by checking what global chapter range this volume covers
+        global_ch_before = 0
+        for vol in range(1, volume_num):
+            global_ch_before += get_chapters_for_volume(structure, vol)
+        chapters_in_this_vol = get_chapters_for_volume(structure, volume_num)
+        # Check if chapter_num is within this volume's range
+        if chapter_num <= global_ch_before or chapter_num > global_ch_before + chapters_in_this_vol:
+            # Chapter doesn't belong to this volume - calculate chapter_in_volume as offset
+            # This is an edge case, but handle it gracefully
+            chapter_in_volume = chapter_num - global_ch_before
+            # Ensure it's at least 1
+            if chapter_in_volume < 1:
+                chapter_in_volume = 1
+        else:
+            # Normal case - chapter is within this volume
+            chapter_in_volume = chapter_num - global_ch_before
 
     prompt = build_writing_prompt(paths, volume_num, chapter_in_volume, chapter_num, config)
 

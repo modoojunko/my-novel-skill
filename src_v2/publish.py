@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
-from .paths import find_project_root, load_config, save_config, load_project_paths
+from .paths import find_project_root, load_config, save_config, load_project_paths, get_volume_and_chapter, get_chapters_for_volume
 from . import cli
 from .publishing import get_registry, PublishResult
 from .progress import load_progress, get_chapter_status

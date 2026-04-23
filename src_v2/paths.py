@@ -173,11 +173,31 @@ def get_volume_dir(paths: Dict[str, Path], volume_num: int, dir_type: str = 'out
 
 
 def get_chapter_path(paths: Dict[str, Path], chapter_num: int,
-                     chapters_per: int = 30, file_type: str = 'outline') -> Path:
-    """Get chapter file path"""
-    volume_num = ((chapter_num - 1) // chapters_per) + 1
+                     structure: Optional[Dict[str, Any]] = None, file_type: str = 'outline',
+                     volume_num: Optional[int] = None) -> Path:
+    """Get chapter file path
+
+    Args:
+        paths: Project paths dict
+        chapter_num: Global chapter number OR chapter-in-volume if volume_num is provided
+        structure: Project structure config (required for per-volume chapter counts)
+        file_type: 'outline', 'content', or 'tasks'
+        volume_num: If provided, chapter_num is treated as chapter-in-volume
+    """
+    if volume_num is None and structure is not None:
+        # Auto-detect volume and get chapter-in-volume
+        volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
+    elif volume_num is None:
+        # Fallback to old method if no structure
+        chapters_per = 30
+        volume_num = ((chapter_num - 1) // chapters_per) + 1
+        chapter_in_volume = chapter_num
+    else:
+        # Volume explicitly provided, chapter_num is chapter-in-volume
+        chapter_in_volume = chapter_num
+
     vol_dir = get_volume_dir(paths, volume_num, 'outline' if file_type == 'outline' else 'content')
-    ch_name = f'chapter-{chapter_num:03d}'
+    ch_name = f'chapter-{chapter_in_volume:03d}'
 
     if file_type == 'outline':
         return vol_dir / f'{ch_name}.yaml'
