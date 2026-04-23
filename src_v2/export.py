@@ -34,7 +34,6 @@ def export_txt(paths: dict, config: dict, output_name: Optional[str] = None):
 
     structure = config.get('structure', {})
     volumes = structure.get('volumes', 1)
-    chapters_per_volume = structure.get('chapters_per_volume', 30)
 
     print(f"\n{c('═' * 60, Colors.BOLD)}")
     print(f"  {c(f'[EXPORT] {title}', Colors.BOLD)}")
@@ -50,9 +49,10 @@ def export_txt(paths: dict, config: dict, output_name: Optional[str] = None):
     for volume_num in range(1, volumes + 1):
         vol_name = f'volume-{volume_num:03d}'
         vol_dir = paths['content'] / vol_name
+        chapters_in_volume = get_chapters_for_volume(structure, volume_num)
 
         if vol_dir.exists():
-            for chapter_num in range(1, chapters_per_volume + 1):
+            for chapter_num in range(1, chapters_in_volume + 1):
                 ch_name = f'chapter-{chapter_num:03d}.md'
                 ch_file = vol_dir / ch_name
 

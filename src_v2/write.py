@@ -38,8 +38,11 @@ def generate_prompt(volume_num: int, chapter_num: int, paths: dict, config: dict
 
     # Calculate chapter number within volume
     structure = config.get('structure', {})
-    chapters_per_volume = structure.get('chapters_per_volume', 30)
-    chapter_in_volume: int = ((chapter_num - 1) % chapters_per_volume) + 1
+    vol_from_chapter, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
+    # If volume_num was provided, we still need to make sure chapter_in_volume is correct
+    if volume_num is not None and volume_num != vol_from_chapter:
+        # Need to calculate chapter_in_volume manually in this edge case
+        pass
 
     prompt = build_writing_prompt(paths, volume_num, chapter_in_volume, chapter_num, config)
 
@@ -157,8 +160,7 @@ def main():
     # Auto-detect volume if not given
     if volume_num is None:
         structure = config.get('structure', {})
-        chapters_per_volume = structure.get('chapters_per_volume', 30)
-        volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
+        volume_num, _ = get_volume_and_chapter(chapter_num, structure)
 
     if prompt_only:
         generate_prompt(volume_num, chapter_num, paths, config, no_anti_repeat)

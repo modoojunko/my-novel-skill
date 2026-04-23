@@ -159,9 +159,7 @@ class PublishingManager:
 
         # 如果 archive 没有，从 content 目录找 (content files use chapter-in-volume numbering)
         structure = self.config.get('structure', {})
-        chapters_per_volume = structure.get('chapters_per_volume', 30)
-        volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
-        chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
+        volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
 
         vol_name = f'volume-{volume_num:03d}'
         content_ch_name = f'chapter-{chapter_in_volume:03d}.md'
@@ -228,8 +226,7 @@ class PublishingManager:
 
         # 准备元数据（章节编号补零到3位）
         structure = self.config.get('structure', {})
-        chapters_per_volume = structure.get('chapters_per_volume', 30)
-        volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
+        volume_num, _ = get_volume_and_chapter(chapter_num, structure)
 
         # 从章节大纲获取标题（如果有）
         chapter_title = ""

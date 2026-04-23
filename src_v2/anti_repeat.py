@@ -42,7 +42,7 @@ def load_yaml(path: Path) -> Optional[Dict[str, Any]]:
 def extract_scenes_from_snapshots(
     outline_dir: Path,
     current_chapter_global: int,
-    chapters_per_volume: int = 30,
+    structure: Dict[str, Any],
     lookback: int = 5
 ) -> List[Dict[str, Any]]:
     """
@@ -51,7 +51,7 @@ def extract_scenes_from_snapshots(
     Args:
         outline_dir: Outline directory (parent of volume-XXX dirs)
         current_chapter_global: Current global chapter number
-        chapters_per_volume: Number of chapters per volume
+        structure: Project structure config (with chapters_per_volume or volumes_config)
         lookback: Number of chapters to look back (default: 5)
 
     Returns:
@@ -63,13 +63,14 @@ def extract_scenes_from_snapshots(
             'source': 'events_happened'|'characters_introduced'|'info_revealed'
         }
     """
+    from .paths import get_volume_and_chapter
+
     scenes = []
     start_chapter_global = max(1, current_chapter_global - lookback)
 
     for ch_global in range(start_chapter_global, current_chapter_global):
         # Calculate volume and chapter-in-volume for this chapter
-        vol_for_ch = ((ch_global - 1) // chapters_per_volume) + 1
-        ch_in_vol = ((ch_global - 1) % chapters_per_volume) + 1
+        vol_for_ch, ch_in_vol = get_volume_and_chapter(ch_global, structure)
 
         # Get snapshot path - snapshot is in volume-XXX/snapshots/ with chapter-in-volume numbering
         snapshot_path = outline_dir / f'volume-{vol_for_ch:03d}' / 'snapshots' / f'chapter-{ch_in_vol:03d}.yaml'

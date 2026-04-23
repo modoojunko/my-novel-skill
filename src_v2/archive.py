@@ -66,16 +66,13 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
     print(f"{c('═' * 60, Colors.BOLD)}\n")
 
     structure = config.get('structure', {})
-    chapters_per_volume = structure.get('chapters_per_volume', 30)
-    volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
+    volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
 
     # Run consistency checks unless skipped
     check_results = None
     if not skip_consistency:
         # Load chapter content - content files use chapter-in-volume numbering
-        structure = config.get('structure', {})
-        chapters_per_volume = structure.get('chapters_per_volume', 30)
-        chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
+        # Already calculated above: volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
         vol_name = f'volume-{volume_num:03d}'
         ch_name = f'chapter-{chapter_in_volume:03d}'
         chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
@@ -118,9 +115,7 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
             print(f"\n  {c('✓ 检查通过，继续归档...', Colors.GREEN)}")
 
     # Find chapter file - content files use chapter-in-volume numbering
-    structure = config.get('structure', {})
-    chapters_per_volume = structure.get('chapters_per_volume', 30)
-    chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
+    # Already calculated above: volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
     vol_name = f'volume-{volume_num:03d}'
     ch_name = f'chapter-{chapter_in_volume:03d}'
     chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
@@ -152,7 +147,7 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
     print(f"{c('═' * 60, Colors.BOLD)}\n")
 
     structure = config.get('structure', {})
-    chapters_per_volume = structure.get('chapters_per_volume', 30)
+    chapters_per_volume = get_chapters_for_volume(structure, volume_num)
     book = config.get('book', {})
 
     # Load progress
@@ -164,7 +159,7 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
     unarchived_chapters = []
 
     for chapter_num in range(1, chapters_per_volume + 1):
-        global_chapter_num = (volume_num - 1) * chapters_per_volume + chapter_num
+        global_chapter_num = get_global_chapter_num(volume_num, chapter_num, structure)
         status = get_chapter_status(progress, global_chapter_num)
 
         # Check if chapter file exists - content files use chapter-in-volume numbering

@@ -11,7 +11,7 @@ Supports JSON output:
 import sys
 import argparse
 from pathlib import Path
-from .paths import find_project_root, load_config, load_project_paths
+from .paths import find_project_root, load_config, load_project_paths, get_total_chapters
 from . import cli
 
 
@@ -23,7 +23,7 @@ def get_project_status_dict(root: Path, config: dict, paths: dict) -> dict:
     style = config.get('style', {})
 
     completed = len(progress.get('completed_chapters', []))
-    total = structure.get('volumes', 0) * structure.get('chapters_per_volume', 30)
+    total = get_total_chapters(structure)
     progress_pct = (completed / total * 100) if total > 0 else 0
 
     # Check next step
@@ -82,7 +82,7 @@ def show_status_interactive(root: Path, config: dict, paths: dict):
 
     cli.print_out(f"\n  {cli.c('Progress:', cli.Colors.BOLD)}")
     completed = len(progress.get('completed_chapters', []))
-    total = structure.get('volumes', 0) * structure.get('chapters_per_volume', 30)
+    total = get_total_chapters(structure)
     cli.print_out(f"    Current: Volume {progress.get('current_volume', 1)}, Chapter {progress.get('current_chapter', 0)}")
     cli.print_out(f"    Completed: {completed} / {total} chapters")
     if total > 0:

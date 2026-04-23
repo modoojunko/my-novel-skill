@@ -7,7 +7,7 @@ prompt - Smart prompt generation with layered summarization
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from enum import Enum
-from .paths import load_project_paths, get_project_writing_principles_path
+from .paths import load_project_paths, get_project_writing_principles_path, get_volume_and_chapter
 from .anti_repeat import (
     extract_scenes_from_snapshots,
     generate_forbidden_list,
@@ -604,15 +604,14 @@ def build_writing_prompt(
         max_suggestions = anti_repeat_config.get('max_suggestions', 5)
         heuristics = anti_repeat_config.get('heuristics', None)
 
-        # Get chapters per volume from config
+        # Get structure config
         structure = config.get('structure', {})
-        chapters_per_volume = structure.get('chapters_per_volume', 30)
 
         # Extract scenes from previous chapters
         scenes = extract_scenes_from_snapshots(
             paths['outline'],
             chapter_global_num,
-            chapters_per_volume,
+            structure,
             lookback
         )
 

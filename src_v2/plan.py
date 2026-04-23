@@ -61,7 +61,7 @@ def plan_volume(volume_num: int, paths: dict, config: dict, no_timeline: bool = 
 
     # Add chapters
     structure = config.get('structure', {})
-    chapters_per_volume = structure.get('chapters_per_volume', 30)
+    chapters_per_volume = get_chapters_for_volume(structure, volume_num)
 
     cli.print_out(f"\n  {cli.c('[CHAPTERS]', cli.Colors.BOLD)}")
     if not cli.is_interactive():

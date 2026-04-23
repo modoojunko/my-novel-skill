@@ -140,6 +140,11 @@ def main():
         "structure": {
             "volumes": volumes,
             "chapters_per_volume": chapters_per_volume,
+            "volumes_config": {
+                # Uncomment and customize to set different chapter counts per volume:
+                # "1": {"chapters": 30},
+                # "2": {"chapters": 16},
+            },
         },
         "style": {
             "tone": tone,

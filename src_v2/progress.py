@@ -193,10 +193,12 @@ def get_current_chapter(progress: Dict[str, Any]) -> int:
     return max(completed) + 1
 
 
-def get_current_volume(progress: Dict[str, Any], chapters_per_volume: int = 30) -> int:
-    """Get current volume number"""
+def get_current_volume(progress: Dict[str, Any], structure: Dict[str, Any]) -> int:
+    """Get current volume number using per-volume chapter config"""
+    from .paths import get_volume_and_chapter
     current_ch = get_current_chapter(progress)
-    return ((current_ch - 1) // chapters_per_volume) + 1
+    vol_num, _ = get_volume_and_chapter(current_ch, structure)
+    return vol_num
 
 
 if __name__ == '__main__':

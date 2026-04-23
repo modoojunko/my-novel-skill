@@ -194,3 +194,53 @@ def get_volume_prompts_dir(paths: Dict[str, Path], volume_num: int) -> Path:
     vol_prompts_dir = paths['prompts'] / vol_name
     vol_prompts_dir.mkdir(parents=True, exist_ok=True)
     return vol_prompts_dir
+
+
+def get_chapters_for_volume(structure: Dict[str, Any], volume_num: int) -> int:
+    """Get number of chapters for a specific volume, fallback to global chapters_per_volume"""
+    # First check if volumes have per-volume config
+    volumes_config = structure.get('volumes_config', {})
+    vol_key = str(volume_num)
+    if vol_key in volumes_config and 'chapters' in volumes_config[vol_key]:
+        return volumes_config[vol_key]['chapters']
+    # Fallback to global config
+    return structure.get('chapters_per_volume', 30)
+
+
+def get_volume_and_chapter(chapter_global_num: int, structure: Dict[str, Any]) -> tuple[int, int]:
+    """Get volume number and chapter-in-volume number from global chapter number"""
+    # Calculate by checking each volume's chapter count
+    vol_num = 1
+    total_volumes = structure.get('volumes', 1)
+
+    while vol_num <= total_volumes:
+        chapters_in_vol = get_chapters_for_volume(structure, vol_num)
+        if chapter_global_num <= chapters_in_vol:
+            return vol_num, chapter_global_num
+        chapter_global_num -= chapters_in_vol
+        vol_num += 1
+
+    # If we exceed known volumes, use fallback logic with global chapters_per_volume
+    chapters_per_vol = structure.get('chapters_per_volume', 30)
+    vol_num = ((chapter_global_num - 1) // chapters_per_vol) + 1
+    ch_in_vol = ((chapter_global_num - 1) % chapters_per_vol) + 1
+    return vol_num, ch_in_vol
+
+
+def get_global_chapter_num(volume_num: int, chapter_in_volume: int, structure: Dict[str, Any]) -> int:
+    """Get global chapter number from volume number and chapter-in-volume"""
+    global_num = 0
+    # Add chapters from previous volumes
+    for vol in range(1, volume_num):
+        global_num += get_chapters_for_volume(structure, vol)
+    # Add current volume's chapter
+    return global_num + chapter_in_volume
+
+
+def get_total_chapters(structure: Dict[str, Any]) -> int:
+    """Get total number of chapters across all volumes"""
+    total = 0
+    total_volumes = structure.get('volumes', 0)
+    for vol in range(1, total_volumes + 1):
+        total += get_chapters_for_volume(structure, vol)
+    return total

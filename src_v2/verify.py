@@ -13,7 +13,7 @@ import sys
 import argparse
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
-from .paths import find_project_root, load_config, load_project_paths
+from .paths import find_project_root, load_config, load_project_paths, get_volume_and_chapter, get_chapters_for_volume
 from .prompt import load_yaml, load_chapter_outline
 from . import cli
 
@@ -177,14 +177,15 @@ def main():
 
     # Get chapter structure config
     structure = config.get('structure', {})
-    chapters_per_volume = structure.get('chapters_per_volume', 30)
 
     # Auto-detect volume if not given
     if volume_num is None:
-        volume_num = ((chapter_num - 1) // chapters_per_volume) + 1
-
-    # Calculate chapter number within volume
-    chapter_in_volume = ((chapter_num - 1) % chapters_per_volume) + 1
+        volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
+    else:
+        # If volume is explicitly given, calculate chapter_in_volume by iterating
+        chapter_in_volume = chapter_num
+        for vol in range(1, volume_num):
+            chapter_in_volume -= get_chapters_for_volume(structure, vol)
 
     # Get paths - content files use chapter-in-volume numbering
     content_dir = paths['content'] / f'volume-{volume_num:03d}'
