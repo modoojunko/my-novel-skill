@@ -39,13 +39,28 @@ story status --non-interactive --json
 
 ```
 【阶段 1：初始化】
-story init → story collect core → story collect protagonist → story world basic
+story init → story collect core → story world basic → 用户确认 story.yaml
+
+其中：
+- collect core: 收集小说名、故事主线、核心设定
+- world basic: 世界基础设定（可在 Phase 3 按需扩展）
+- 用户确认: Agent 展示 story.yaml 内容，用户确认后才进入 Phase 2
 
 【阶段 2：每卷开始前】
 直接编辑 story.yaml 规划卷大纲和章节大纲。详见"附录 A：story.yaml 大纲 Schema"。
 
 【阶段 3：每章写作循环】
-（可选）story character update → story write N --prompt → 子 Agent 写正文 → story verify N → story archive N
+1. story write N --prompt     生成提示词
+2. 子 Agent 写正文             按提示词写第 N 章
+3. story verify N              验证章节是否符合大纲
+4. 展示验证报告                Agent 展示 verify 结果，告知用户查阅文档
+5. 用户确认                    用户自行判断验证结果
+6. story archive N             归档（如用户确认通过）
+（可选）story character update  更新角色认知
+
+验证结果处理：
+- verify 通过 → 展示报告 → 用户确认 → archive
+- verify 失败 → 展示问题 → 用户决定处理方式（重写/修改大纲/强制归档）
 
 【阶段 4：发布（可选）】
 story publish N feishu 或 story publish all feishu
@@ -154,7 +169,7 @@ Subagent 应该读取这个文件获取完整的章节写作指导。
 | `story publish status` | 查看发布状态 | 检查哪些章节已发布 |
 | `story publish <num> feishu` | 发布单章到飞书 | 发布第N章 |
 | `story publish all feishu` | 发布所有未发布章节 | 批量发布 |
-| `story github list` | 列出GitHub Issues | 查看工具问题时 |
+| `story github <action>` | GitHub Issue 管理（list/view/create） | 查看或创建工具问题 |
 | `story migrate` | 迁移旧项目结构 | 有旧版本项目时 |
 
 ---
