@@ -703,6 +703,15 @@ def build_writing_prompt(
         prompt += "## [L0] 本章详细写作指南（必须严格遵守）\n"
         prompt += summarize_chapter_outline(chapter, 'full')
         prompt += "\n\n"
+    else:
+        # Fallback: chapter outline file doesn't exist, use chapter_summaries from volume
+        if volume:
+            chapter_summaries = volume.get('chapter_summaries', {})
+            ch_summary = chapter_summaries.get(str(chapter_in_volume)) or chapter_summaries.get(chapter_in_volume)
+            if ch_summary:
+                prompt += "## [L0] 本章概要（详细大纲文件缺失，使用卷纲概要）\n"
+                prompt += f"第{chapter_global_num}章（卷内第{chapter_in_volume}章）大纲：\n"
+                prompt += f"{ch_summary}\n\n"
 
     # Final reminder - keep it simple
     prompt += "---\n\n"
