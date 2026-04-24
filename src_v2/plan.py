@@ -328,6 +328,17 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
         if response.strip().lower() != 'y':
             cli.print_out("  Cancelled")
             return
+    elif existing and not has_content:
+        # Empty outline - in non-interactive mode, use existing (empty), don't prompt
+        if not cli.is_interactive():
+            cli.print_out(f"  {cli.c(f'Chapter {chapter_num} outline is empty, using existing', cli.Colors.YELLOW)}")
+            return
+        # Interactive mode: ask to replan
+        cli.print_out(f"  {cli.c(f'Warning: Chapter {chapter_num} outline is empty', cli.Colors.YELLOW)}")
+        response = cli.input_with_default("Re-plan?", "Y", arg_key="replan")
+        if response.strip().lower() != 'y':
+            cli.print_out("  Cancelled")
+            return
 
     # Get chapter title from volume outline
     chapter_title = f"第{chapter_num}章"
