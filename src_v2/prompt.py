@@ -181,13 +181,17 @@ def summarize_chapter_outline(chapter: Dict[str, Any], level: str = 'full') -> s
         result += "\n### 场景设定（必须严格遵守）\n"
         chapter_time = info.get('time', chapter.get('time', '凌晨6:47'))
         chapter_location = info.get('location', chapter.get('location', '合租房'))
-        chapter_characters = chapter.get('characters', [])
-        if isinstance(chapter_characters, list) and chapter_characters:
-            result += f"- 时间: {chapter_time}\n"
-            result += f"- 地点: {chapter_location}\n"
-            result += f"- 主要角色: {', '.join(chapter_characters) if isinstance(chapter_characters[0], str) else ', '.join([c.get('name', '') for c in chapter_characters[:3]])}\n"
+        chapter_characters = info.get('characters', chapter.get('characters', []))
+        if chapter_characters:
+            if isinstance(chapter_characters[0], str):
+                result += f"- 时间: {chapter_time}\n"
+                result += f"- 地点: {chapter_location}\n"
+                result += f"- 主要角色: {', '.join(chapter_characters)}\n"
+            else:
+                result += f"- 时间: {chapter_time}\n"
+                result += f"- 地点: {chapter_location}\n"
+                result += f"- 主要角色: {', '.join([c.get('name', '') for c in chapter_characters[:3]])}\n"
         else:
-            # Try to get from volume chapter_list
             result += f"- 时间: {chapter_time}\n"
             result += f"- 地点: {chapter_location}\n"
         result += "\n"
