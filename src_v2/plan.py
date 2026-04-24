@@ -329,10 +329,13 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
             cli.print_out("  Cancelled")
             return
     elif existing and not has_content:
-        # Empty outline - in non-interactive mode, use existing (empty), don't prompt
+        # Empty outline - in non-interactive mode with args, proceed; otherwise skip
         if not cli.is_interactive():
-            cli.print_out(f"  {cli.c(f'Chapter {chapter_num} outline is empty, using existing', cli.Colors.YELLOW)}")
-            return
+            args = cli.get_args()
+            if not (args.get('summary') or args.get('pov') or args.get('time')):
+                cli.print_out(f"  {cli.c(f'Chapter {chapter_num} outline is empty, skipping', cli.Colors.YELLOW)}")
+                return
+        # Interactive mode: ask to replan
         # Interactive mode: ask to replan
         cli.print_out(f"  {cli.c(f'Warning: Chapter {chapter_num} outline is empty', cli.Colors.YELLOW)}")
         response = cli.input_with_default("Re-plan?", "Y", arg_key="replan")
@@ -363,7 +366,7 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
     if characters:
         outline['chapter_info']['characters'] = [c.strip() for c in characters.split(',')]
     outline['summary'] = cli.input_with_default(
-        "Chapter summary (high-level overview: plot progression, character arcs)",
+        "Chapter summary (客观描述事件，不暗示角色内心认知。如：'林默在6:47醒来，发现闹钟停在6:47'，禁止：'林默意识到时间重置了')",
         "",
         arg_key="summary"
     )

@@ -210,6 +210,8 @@ def ensure_default_templates(templates_dir: Path) -> None:
     question: "本章主要发生在哪里？"
   - key: key_event
     question: "本章的关键事件是什么？"
+  - key: summary
+    question: "章节概要（客观描述事件，不暗示角色内心认知。如：'林默在6:47醒来，发现闹钟停在6:47'，禁止：'林默意识到时间重置了'）"
 """, encoding='utf-8')
 
     # Chapter expand template
