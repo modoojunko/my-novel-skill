@@ -176,6 +176,22 @@ def summarize_chapter_outline(chapter: Dict[str, Any], level: str = 'full') -> s
     if pov:
         result += f"POV: {pov}\n"
 
+    # Add scene setup with 4 W's (When, Where, Who, What)
+    if level == 'full':
+        result += "\n### 场景设定（必须严格遵守）\n"
+        chapter_time = info.get('time', chapter.get('time', '凌晨6:47'))
+        chapter_location = info.get('location', chapter.get('location', '合租房'))
+        chapter_characters = chapter.get('characters', [])
+        if isinstance(chapter_characters, list) and chapter_characters:
+            result += f"- 时间: {chapter_time}\n"
+            result += f"- 地点: {chapter_location}\n"
+            result += f"- 主要角色: {', '.join(chapter_characters) if isinstance(chapter_characters[0], str) else ', '.join([c.get('name', '') for c in chapter_characters[:3]])}\n"
+        else:
+            # Try to get from volume chapter_list
+            result += f"- 时间: {chapter_time}\n"
+            result += f"- 地点: {chapter_location}\n"
+        result += "\n"
+
     # Get config for max lengths (or use defaults)
     max_summary_length = 500
     max_scene_length = 200
@@ -200,9 +216,24 @@ def summarize_chapter_outline(chapter: Dict[str, Any], level: str = 'full') -> s
         result += "请按照以下场景顺序，逐段写作本章正文。每个场景要包含具体的细节描写、对话和情感表达。\n\n"
         # Limit number of scenes and truncate each
         for i, scene in enumerate(key_scenes[:max_scenes], 1):
-            truncated_scene = smart_truncate(scene, max_scene_length)
-            result += f"#### 场景 {i}\n"
-            result += f"{truncated_scene}\n\n"
+            # Check if scene has structured format (with time/location/characters)
+            if isinstance(scene, dict):
+                scene_title = scene.get('title', f'场景{i}')
+                scene_location = scene.get('location', '')
+                scene_time = scene.get('time', '')
+                scene_characters = scene.get('characters', [])
+                result += f"#### 场景 {i}: {scene_title}\n"
+                if scene_location:
+                    result += f"- 地点: {scene_location}\n"
+                if scene_time:
+                    result += f"- 时间: {scene_time}\n"
+                if scene_characters:
+                    result += f"- 角色: {', '.join(scene_characters)}\n"
+                result += f"- 内容: {scene.get('content', '')}\n\n"
+            else:
+                truncated_scene = smart_truncate(str(scene), max_scene_length)
+                result += f"#### 场景 {i}\n"
+                result += f"{truncated_scene}\n\n"
 
         if len(key_scenes) > max_scenes:
             result += f"  ... (and {len(key_scenes) - max_scenes} more scenes)\n"

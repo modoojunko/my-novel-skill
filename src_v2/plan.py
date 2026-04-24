@@ -352,9 +352,16 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
     # Collect info
     title = cli.input_with_default("Chapter title", chapter_title, arg_key="chapter_title")
     pov = cli.input_with_default("POV character", chapter_pov, arg_key="pov")
+    time_setting = cli.input_with_default("Time setting (e.g., 凌晨6:47, 上午10点)", "", arg_key="time")
+    location = cli.input_with_default("Location (e.g., 合租房, 警局)", "", arg_key="location")
+    characters = cli.input_with_default("Main characters (comma separated)", "", arg_key="characters")
 
     # Create outline
     outline = create_chapter_outline(chapter_num, volume_num, title, pov)
+    outline['chapter_info']['time'] = time_setting
+    outline['chapter_info']['location'] = location
+    if characters:
+        outline['chapter_info']['characters'] = [c.strip() for c in characters.split(',')]
     outline['summary'] = cli.input_with_default(
         "Chapter summary (high-level overview: plot progression, character arcs)",
         "",
