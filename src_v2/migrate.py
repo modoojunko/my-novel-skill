@@ -135,6 +135,69 @@ def load_old_world_data(world_dir: Path) -> Dict[str, Any]:
     return world_data
 
 
+def migrate_outlines(paths: dict, config: dict, delete: bool = False) -> dict:
+    """Migrate outline yaml files to story.yaml
+
+    Args:
+        paths: project paths dict
+        config: story.yaml config dict (modified in place)
+        delete: if True, delete yaml files after migration
+
+    Returns:
+        dict with 'migrated' (list of keys), 'errors' (list), 'deleted' (list)
+    """
+    outline_dir = paths['outline']
+    migrated = []
+    errors = []
+    deleted = []
+
+    # Scan volume directories
+    for vol_dir in sorted(outline_dir.glob('volume-*')):
+        if not vol_dir.is_dir():
+            continue
+        vol_num = int(vol_dir.name.split('-')[1])
+
+        # Scan chapter yaml files
+        for ch_file in sorted(vol_dir.glob('chapter-*.yaml')):
+            ch_num = int(ch_file.stem.split('-')[1])
+            try:
+                data = _load_yaml_or_json(ch_file)
+                if not data:
+                    continue
+
+                ch_key = f"{vol_num}-{ch_num}"
+
+                # Convert to nested format
+                migrated_data = {
+                    'summary': data.get('summary', ''),
+                    'key_scenes': data.get('key_scenes', []),
+                    'chapter_info': {
+                        'number': data.get('chapter'),
+                        'volume': data.get('volume'),
+                        'title': data.get('title', ''),
+                        'pov': data.get('pov', ''),
+                    }
+                }
+
+                # Write to config
+                if 'outlines' not in config:
+                    config['outlines'] = {}
+                if 'chapters' not in config['outlines']:
+                    config['outlines']['chapters'] = {}
+                config['outlines']['chapters'][ch_key] = migrated_data
+                migrated.append(ch_key)
+
+                # Delete if requested
+                if delete:
+                    ch_file.unlink()
+                    deleted.append(ch_key)
+
+            except Exception as e:
+                errors.append(f"{vol_num}-{ch_num}: {str(e)}")
+
+    return {'migrated': migrated, 'errors': errors, 'deleted': deleted}
+
+
 def migrate_project(root: Path, dry_run: bool = False) -> Dict[str, Any]:
     """Migrate an old project to new structure"""
     config = load_config(root)
@@ -227,10 +290,16 @@ Options:
   --json             Output JSON format for AI consumption
   --non-interactive  Non-interactive mode
 
+Subcommands:
+  story migrate outlines        Migrate outline yaml files to story.yaml
+  story migrate outlines --delete  Migrate and delete yaml files
+
 Examples:
   story migrate
   story migrate --dry-run
   story migrate --json --non-interactive
+  story migrate outlines
+  story migrate outlines --delete
 """)
 
 
@@ -268,6 +337,36 @@ def main():
     root = find_project_root()
     if not root:
         cli.error_message("Not in a novel project (no story.yaml/story.json)")
+
+    # Check for outlines subcommand
+    if len(sys.argv) >= 2 and sys.argv[1] == 'outlines':
+        # story migrate outlines [--delete]
+        delete = '--delete' in sys.argv
+        filtered = [a for a in sys.argv[2:] if a not in ('--delete', '--json', '--non-interactive')]
+        sys.argv = ['story-migrate'] + filtered
+
+        root = find_project_root()
+        if not root:
+            cli.error_message("Not in a novel project")
+        config = load_config(root)
+        paths = load_project_paths(root)
+
+        result = migrate_outlines(paths, config, delete=delete)
+        if result['migrated']:
+            save_config(root, config)
+
+        if cli.is_json_mode():
+            cli.output_json(result)
+        else:
+            migrated_count = len(result['migrated'])
+            error_count = len(result['errors'])
+            deleted_count = len(result['deleted'])
+            cli.print_out(f"  {cli.c(f'Migrated {migrated_count} chapters', cli.Colors.GREEN)}")
+            if error_count:
+                cli.print_out(f"  {cli.c(f'Errors: {error_count}', cli.Colors.RED)}")
+            if deleted_count:
+                cli.print_out(f"  {cli.c(f'Deleted {deleted_count} files', cli.Colors.YELLOW)}")
+        return
 
     # Run migration
     result = migrate_project(root, dry_run=dry_run)
