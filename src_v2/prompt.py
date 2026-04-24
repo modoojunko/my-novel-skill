@@ -71,8 +71,20 @@ def load_chapter_outline(outline_dir: Path, volume_num: int, chapter_num: int) -
 
 
 def summarize_volume_outline(volume: Dict[str, Any], level: str = 'full') -> str:
-    """Summarize volume outline at different levels"""
+    """Summarize volume outline at different levels
+
+    Supports two formats:
+    - Nested: volume.volume_info.number/title/theme
+    - Flat: volume.volume/volume_title/volume_theme (or volume.number/volume.title)
+    """
+    # Support both nested and flat formats
     info = volume.get('volume_info', {})
+    if not info:
+        # Flat format fallback
+        vol_num = volume.get('volume') or volume.get('number') or ''
+        title = volume.get('title') or volume.get('volume_title') or ''
+        theme = volume.get('theme') or volume.get('volume_theme') or ''
+        info = {'number': vol_num, 'title': title, 'theme': theme}
     summary = f"Volume {info.get('number', '')}: {info.get('title', '')}\n"
     summary += f"Theme: {info.get('theme', '')}\n\n"
 
