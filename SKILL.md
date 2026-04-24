@@ -57,6 +57,80 @@ story publish N feishu 或 story publish all feishu
 
 ---
 
+## 🤖 Subagent 批量写作模式
+
+主 agent 默认通过 subagent 批量处理章节正文，不自己直接写。
+
+### 核心原则
+
+- **主 agent**：确认大纲、生成提示词、协调进度、验证归档
+- **Subagent**：根据完整提示词写正文，不记忆之前对话
+- **确保风格一致**：所有 subagent 使用相同的 writing-principles.yaml
+
+### 标准工作流程
+
+```
+【批量写作流程】
+1. 主 agent：story write N --prompt（生成提示词）
+2. 主 agent：调用 subagent 写第 N 章
+3. 主 agent：story verify N（验证）
+4. 主 agent：story archive N（归档）
+5. 主 agent：（可选）story character update（更新角色认知）
+6. 重复 1-5 写下一章
+```
+
+### Subagent 调用模板
+
+**单章写作：**
+```
+使用 Agent tool 调用 subagent：
+- prompt: 读取 process/PROMPTS/volume-XXX/chapter-XXX-prompt.md 的完整内容
+- subagent_type: gan-generator（或其他适当的 subagent）
+- 任务：按提示词要求写第 {N} 章正文，输出到 process/OUTLINE/volume-XXX/chapter-XXX-draft.md
+```
+
+**批量写作（2-3 章）：**
+```
+并行启动多个 subagent，每个写一章：
+- Agent 1: 写第 {N} 章
+- Agent 2: 写第 {N+1} 章
+- Agent 3: 写第 {N+2} 章
+
+等待所有 subagent 完成后，逐一验证归档。
+```
+
+### 批量写作示例
+
+**用户说："帮我写第 5-7 章"**
+
+```
+主 agent 流程：
+1. story write 5 --prompt
+2. story write 6 --prompt  
+3. story write 7 --prompt
+4. 并行启动 3 个 subagent 写这三章
+5. 逐一验证：story verify 5 → story archive 5
+6. 逐一验证：story verify 6 → story archive 6
+7. 逐一验证：story verify 7 → story archive 7
+8. 更新角色认知：story character update "主角" ...
+```
+
+### 提示词文件位置
+
+生成的提示词在：
+```
+process/PROMPTS/volume-{XXX}/chapter-{YYY}-prompt.md
+```
+
+Subagent 应该读取这个文件获取完整的章节写作指导。
+
+### 注意事项
+
+- subagent 写完后，主 agent 必须运行 `story verify N` 验证
+- 验证通过才能归档：`story archive N`
+- 如果验证失败：用 `story unarchive N` 恢复，重新生成提示词，让 subagent 重写
+- 不要让 subagent 直接写文件，通过主 agent 中转
+
 ## 📖 完整命令参考
 
 | 命令 | 功能 | 常用场景 |
@@ -75,6 +149,7 @@ story publish N feishu 或 story publish all feishu
 | `story write <num> --prompt` | 生成章节提示词 | 准备写第N章时 |
 | `story verify <num>` | 验证章节是否符合大纲 | 第N章写完后 |
 | `story archive <num>` | 归档已完成章节 | 第N章验证通过后 |
+| `story unarchive <num>` | 取消归档，恢复到content | 重新创作已归档章节 |
 | `story export` | 导出小说 | 完成后导出 |
 | `story publish status` | 查看发布状态 | 检查哪些章节已发布 |
 | `story publish <num> feishu` | 发布单章到飞书 | 发布第N章 |

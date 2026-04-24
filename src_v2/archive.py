@@ -8,7 +8,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from .paths import find_project_root, load_config, load_project_paths, get_volume_and_chapter
+
+from .paths import find_project_root, load_config, load_project_paths, get_volume_and_chapter, get_chapters_for_volume, get_global_chapter_num, save_config
+
 from .progress import (
     load_progress, save_progress,
     set_chapter_status, ChapterStatus,
@@ -53,6 +55,7 @@ class Colors:
     RED = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
+    CYAN = '\033[96m'
 
 
 def c(text: str, color: str) -> str:
@@ -71,8 +74,6 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
     # Run consistency checks unless skipped
     check_results = None
     if not skip_consistency:
-        # Load chapter content - content files use chapter-in-volume numbering
-        # Already calculated above: volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
         vol_name = f'volume-{volume_num:03d}'
         ch_name = f'chapter-{chapter_in_volume:03d}'
         chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
@@ -82,24 +83,19 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
             with open(chapter_file, 'r', encoding='utf-8') as f:
                 chapter_content = f.read()
 
-        # Ensure snapshots directory exists for this volume
         from .snapshot import get_snapshot_dir
         snapshots_dir = get_snapshot_dir(paths['outline'], volume_num)
         snapshots_dir.mkdir(parents=True, exist_ok=True)
 
-        # Run checks
         check_results = run_all_consistency_checks(
             chapter_content, chapter_num, volume_num, paths, config
         )
 
-        # Save check results - check files use chapter-in-volume numbering too
         check_path = snapshots_dir / f'chapter-{chapter_in_volume:03d}-check.yaml'
         save_yaml(check_path, check_results)
 
-        # Display report
         print(format_check_report(check_results))
 
-        # Check if we should block
         summary = check_results.get('check_results', {}).get('summary', {})
         has_errors = summary.get('errors', 0) > 0
 
@@ -114,8 +110,6 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
         if not has_errors:
             print(f"\n  {c('✓ 检查通过，继续归档...', Colors.GREEN)}")
 
-    # Find chapter file - content files use chapter-in-volume numbering
-    # Already calculated above: volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
     vol_name = f'volume-{volume_num:03d}'
     ch_name = f'chapter-{chapter_in_volume:03d}'
     chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
@@ -125,11 +119,9 @@ def archive_chapter(chapter_num: int, paths: dict, config: dict, force: bool = F
         print(f"  Expected: {chapter_file}")
         return
 
-    # Copy to archive
     archive_file = paths['archive'] / f'{ch_name}.md'
     copyfile(chapter_file, archive_file)
 
-    # Update progress
     progress = load_progress(paths['process'])
     progress = set_chapter_status(
         progress, chapter_num, ChapterStatus.ARCHIVED, volume_num
@@ -150,10 +142,8 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
     chapters_per_volume = get_chapters_for_volume(structure, volume_num)
     book = config.get('book', {})
 
-    # Load progress
     progress = load_progress(paths['process'])
 
-    # Check all chapters in the volume
     print(f"  {c('Checking chapters...', Colors.CYAN)}")
     chapters_to_archive = []
     unarchived_chapters = []
@@ -162,7 +152,6 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
         global_chapter_num = get_global_chapter_num(volume_num, chapter_num, structure)
         status = get_chapter_status(progress, global_chapter_num)
 
-        # Check if chapter file exists - content files use chapter-in-volume numbering
         vol_name = f'volume-{volume_num:03d}'
         ch_name = f'chapter-{chapter_num:03d}'
         chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
@@ -183,11 +172,9 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
         print(f"  {c('No chapters found for volume', Colors.RED)}")
         return
 
-    # Create volume archive directory
     vol_archive_dir = paths['archive'] / f'volume-{volume_num:03d}'
     vol_archive_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy chapter files
     print(f"\n  {c('Copying chapters...', Colors.CYAN)}")
     for chapter_num in chapters_to_archive:
         ch_name = f'chapter-{chapter_num:03d}'
@@ -200,7 +187,6 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
         else:
             print(f"    {c('⚠', Colors.YELLOW)} Chapter {chapter_num} (file missing, skipped)")
 
-    # Create volume info file
     vol_info = {
         'volume_number': volume_num,
         'archived_at': datetime.now().isoformat(),
@@ -209,7 +195,6 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
         'total_chapters': len(chapters_to_archive),
     }
 
-    # Try to load volume outline for more info
     vol_outline_path = paths['outline'] / f'volume-{volume_num:03d}.yaml'
     if vol_outline_path.exists():
         vol_outline = load_yaml(vol_outline_path)
@@ -250,6 +235,16 @@ def unarchive_chapter(chapter_num: int, paths: dict, config: dict):
         progress, chapter_num, ChapterStatus.COMPLETED, volume_num
     )
     save_progress(paths['process'], progress)
+
+    # Remove from story.yaml completed_chapters
+    root = find_project_root()
+    if root:
+        story_config = load_config(root)
+        completed = story_config.get('progress', {}).get('completed_chapters', [])
+        if chapter_num in completed:
+            completed.remove(chapter_num)
+            story_config['progress']['completed_chapters'] = completed
+            save_config(root, story_config)
 
     print(f"  {c('✓ Unarchived!', Colors.GREEN)}")
     print(f"  Restored to: {chapter_file}")
@@ -293,17 +288,14 @@ def main():
         show_archive_help()
         return
 
-    # Parse arguments
     target = sys.argv[1].lower() if len(sys.argv) > 1 else None
 
-    # Check for help
     if target in ('help', '--help', '-h'):
         show_archive_help()
         return
 
     # Handle unarchive command
     if target == 'unarchive':
-        # Parse unarchive-specific args
         remaining_args = []
         i = 2
         while i < len(sys.argv):
@@ -354,7 +346,6 @@ def main():
         show_archive_help()
         return
 
-    # Find project root
     root = find_project_root()
     if not root:
         print("  Error: Not in a novel project (no story.yaml/story.json)")
@@ -364,7 +355,6 @@ def main():
     config = load_config(root)
     paths = load_project_paths(root)
 
-    # Handle volume archive
     if remaining_args[0].lower() == 'volume':
         if len(remaining_args) < 2 or not remaining_args[1].isdigit():
             show_archive_help()
@@ -373,13 +363,11 @@ def main():
         archive_volume(volume_num, paths, config, force)
         return
 
-    # Handle chapter archive
     if remaining_args[0].isdigit():
         chapter_num = int(remaining_args[0])
         archive_chapter(chapter_num, paths, config, force, check_only, skip_consistency)
         return
 
-    # Unknown target
     show_archive_help()
 
 
