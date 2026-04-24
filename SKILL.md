@@ -42,7 +42,7 @@ story status --non-interactive --json
 story init → story collect core → story collect protagonist → story world basic
 
 【阶段 2：每卷开始前】
-直接编辑 story.yaml 规划卷大纲和章节大纲
+直接编辑 story.yaml 规划卷大纲和章节大纲。详见"附录 A：story.yaml 大纲 Schema"。
 
 【阶段 3：每章写作循环】
 （可选）story character update → story write N --prompt → 子 Agent 写正文 → story verify N → story archive N
@@ -240,3 +240,50 @@ story character export "张三" --non-interactive --json
 
 **用户说："这章写完了，张三现在知道了李四的秘密"**
 → Agent 回应：好的，我来更新张三的认知...（运行 story character update "张三" --event "..."）
+
+---
+
+## 附录 A：story.yaml 大纲 Schema
+
+### 卷大纲格式（写入 `outlines.volumes.{n}`）
+
+```yaml
+outlines:
+  volumes:
+    "2":
+      title: "第2卷标题"
+      theme: "本卷主题"
+      structure:
+        opening: "开场描述"
+        development: "发展描述"
+        climax: "高潮描述"
+        ending: "结局描述"
+      chapter_summaries:
+        "1": "第1章一句话概要"
+        "2": "第2章一句话概要"
+        "12": "第12章一句话概要"
+```
+
+### 章节大纲格式（写入 `outlines.chapters."{vol}-{ch}"`）
+
+```yaml
+outlines:
+  chapters:
+    "2-12":              # "卷-章" 格式的 key
+      summary: "第12章详细概要（300-500字）"
+      key_scenes:
+        - "场景1: 地点+POV+关键动作"
+        - "场景2: ..."
+      chapter_info:
+        number: 12
+        title: "第12章标题"
+        pov: "林悦"
+```
+
+### 数据层级说明
+
+- `outlines.volumes.{n}.chapter_summaries.{ch}` — 每卷创建时的一句话概要，**必须提供**
+- `outlines.chapters."{vol}-{ch}"` — 完整章节大纲（可选），推荐提供让 L0 更丰富
+
+当 `outlines.chapters` 有数据时，`story write N --prompt` 显示完整章节大纲。
+当 `outlines.chapters` 无数据时，回退到 `chapter_summaries`（一句话概要）。
