@@ -170,7 +170,7 @@ Subagent 应该读取这个文件获取完整的章节写作指导。
 | `story publish <num> feishu` | 发布单章到飞书 | 发布第N章 |
 | `story publish all feishu` | 发布所有未发布章节 | 批量发布 |
 | `story github <action>` | GitHub Issue 管理（list/view/create） | 查看或创建工具问题 |
-| `story migrate` | 迁移旧项目结构 | 有旧版本项目时 |
+| `story migrate outlines [--delete]` | 迁移 outline yaml 到 story.yaml | 迁移旧项目大纲数据 |
 
 ---
 
