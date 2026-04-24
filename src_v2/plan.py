@@ -316,10 +316,9 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
         cli.print_out(f"  Run 'story plan volume {volume_num}' first")
         return
 
-    # Check if chapter exists
+    # Check if chapter exists and has meaningful content
     existing = load_chapter_outline(outline_dir, volume_num, chapter_num)
-    # Check if existing outline has meaningful content
-    has_content = existing and any(existing.values())
+    has_content = existing and (existing.get('summary', '').strip() or existing.get('key_scenes'))
     if existing and has_content:
         if not cli.is_interactive():
             cli.print_out(f"  {cli.c(f'Chapter {chapter_num} outline already exists, skipping', cli.Colors.YELLOW)}")
