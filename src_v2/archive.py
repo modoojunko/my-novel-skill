@@ -225,6 +225,36 @@ def archive_volume(volume_num: int, paths: dict, config: dict, force: bool = Fal
     print(f"  Chapters: {len(chapters_to_archive)}")
 
 
+def unarchive_chapter(chapter_num: int, paths: dict, config: dict):
+    """Unarchive a chapter - restore from archive back to content"""
+    print(f"\n{c('═' * 60, Colors.BOLD)}")
+    print(f"  {c(f'[UNARCHIVE] Chapter {chapter_num}', Colors.BOLD)}")
+    print(f"{c('═' * 60, Colors.BOLD)}\n")
+
+    structure = config.get('structure', {})
+    volume_num, chapter_in_volume = get_volume_and_chapter(chapter_num, structure)
+
+    ch_name = f'chapter-{chapter_in_volume:03d}'
+    archive_file = paths['archive'] / f'{ch_name}.md'
+
+    if not archive_file.exists():
+        print(f"  {c(f'❌ Archive file not found: {archive_file}', Colors.RED)}")
+        return
+
+    vol_name = f'volume-{volume_num:03d}'
+    chapter_file = paths['content'] / vol_name / f'{ch_name}.md'
+    copyfile(archive_file, chapter_file)
+
+    progress = load_progress(paths['process'])
+    progress = set_chapter_status(
+        progress, chapter_num, ChapterStatus.COMPLETED, volume_num
+    )
+    save_progress(paths['process'], progress)
+
+    print(f"  {c('✓ Unarchived!', Colors.GREEN)}")
+    print(f"  Restored to: {chapter_file}")
+
+
 def show_archive_help():
     print("""
 Usage: story archive <target> [options]
@@ -246,6 +276,18 @@ Examples:
 """)
 
 
+def show_unarchive_help():
+    print("""
+Usage: story unarchive <chapter_num>
+
+Restore a chapter from archive back to content directory.
+The archive file is kept as backup.
+
+Examples:
+  story unarchive 5
+""")
+
+
 def main():
     if len(sys.argv) < 2:
         show_archive_help()
@@ -257,6 +299,36 @@ def main():
     # Check for help
     if target in ('help', '--help', '-h'):
         show_archive_help()
+        return
+
+    # Handle unarchive command
+    if target == 'unarchive':
+        # Parse unarchive-specific args
+        remaining_args = []
+        i = 2
+        while i < len(sys.argv):
+            arg = sys.argv[i]
+            if arg in ('help', '--help', '-h'):
+                show_unarchive_help()
+                return
+            else:
+                remaining_args.append(arg)
+            i += 1
+
+        if not remaining_args or not remaining_args[0].isdigit():
+            show_unarchive_help()
+            return
+
+        root = find_project_root()
+        if not root:
+            print("  Error: Not in a novel project (no story.yaml/story.json)")
+            print("  Run 'story init' first")
+            return
+
+        config = load_config(root)
+        paths = load_project_paths(root)
+        chapter_num = int(remaining_args[0])
+        unarchive_chapter(chapter_num, paths, config)
         return
 
     # Parse global options

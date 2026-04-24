@@ -25,6 +25,7 @@ Commands:
   write       Generate chapter prompt / write
   verify      Verify that chapter follows the prompt
   archive     Archive completed chapter
+  unarchive   Unarchive/restore a chapter back to content
   export      Export novel
   github      GitHub Issue 查阅和创建 (check, list, view, create, bug, feature)
   publish     Publish chapters to platforms (check, status, <chapter>, all)
@@ -61,6 +62,7 @@ def main():
         'write': write,
         'verify': verify,
         'archive': archive,
+        'unarchive': archive,
         'export': export,
         'github': github,
         'publish': publish,
@@ -68,7 +70,11 @@ def main():
     }
 
     if cmd in commands:
-        sys.argv = [sys.argv[0]] + sys.argv[2:]
+        if cmd in ('archive', 'unarchive'):
+            # Pass command name as first arg so archive module can distinguish
+            sys.argv = [sys.argv[0], cmd] + sys.argv[2:]
+        else:
+            sys.argv = [sys.argv[0]] + sys.argv[2:]
         commands[cmd].main()
     else:
         print(f"  Unknown command: {cmd}")
