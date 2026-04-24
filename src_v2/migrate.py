@@ -308,42 +308,10 @@ def main():
         show_migrate_help()
         return
 
-    # Parse arguments
-    dry_run = '--dry-run' in sys.argv
-
-    # Filter out global options
-    filtered_args = []
-    i = 1
-    while i < len(sys.argv):
-        arg = sys.argv[i]
-        if arg == '--dry-run':
-            i += 1
-        elif arg in ('--json', '--non-interactive'):
-            filtered_args.append(arg)
-            i += 1
-        elif arg == '--args':
-            filtered_args.append(arg)
-            filtered_args.append(sys.argv[i + 1])
-            i += 2
-        else:
-            i += 1
-
-    # Set up cli
-    import argparse
-    parser = argparse.ArgumentParser(add_help=False)
-    args, _ = cli.parse_cli_args(parser)
-
-    # Find project root
-    root = find_project_root()
-    if not root:
-        cli.error_message("Not in a novel project (no story.yaml/story.json)")
-
-    # Check for outlines subcommand
+    # Check for outlines subcommand BEFORE argparse (argparse can't handle unknown 'outlines' positional arg)
     if len(sys.argv) >= 2 and sys.argv[1] == 'outlines':
         # story migrate outlines [--delete]
         delete = '--delete' in sys.argv
-        filtered = [a for a in sys.argv[2:] if a not in ('--delete', '--json', '--non-interactive')]
-        sys.argv = ['story-migrate'] + filtered
 
         root = find_project_root()
         if not root:
@@ -367,6 +335,19 @@ def main():
             if deleted_count:
                 cli.print_out(f"  {cli.c(f'Deleted {deleted_count} files', cli.Colors.YELLOW)}")
         return
+
+    # Parse arguments for regular migrate
+    dry_run = '--dry-run' in sys.argv
+
+    # Set up cli
+    import argparse
+    parser = argparse.ArgumentParser(add_help=False)
+    args, _ = cli.parse_cli_args(parser)
+
+    # Find project root
+    root = find_project_root()
+    if not root:
+        cli.error_message("Not in a novel project (no story.yaml/story.json)")
 
     # Run migration
     result = migrate_project(root, dry_run=dry_run)
