@@ -13,7 +13,7 @@ import sys
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
-from .paths import find_project_root, load_config, load_project_paths, get_volume_prompts_dir
+from .paths import find_project_root, load_config, load_project_paths, get_volume_prompts_dir, get_chapters_for_volume
 from .templates import ensure_default_templates
 from .prompt import load_core_info
 from .outline import (
