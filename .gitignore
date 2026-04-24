@@ -37,3 +37,4 @@ story.json
 
 # Git worktrees
 .worktrees/
+graphify-out/

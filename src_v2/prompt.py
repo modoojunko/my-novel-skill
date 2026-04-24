@@ -72,15 +72,54 @@ def load_chapter_outline(outline_dir: Path, volume_num: int, chapter_num: int) -
 
 def summarize_volume_outline(volume: Dict[str, Any], level: str = 'full') -> str:
     """Summarize volume outline at different levels"""
-    if level == 'full':
-        import json
-        return json.dumps(volume, ensure_ascii=False, indent=2)
-
     info = volume.get('volume_info', {})
     summary = f"Volume {info.get('number', '')}: {info.get('title', '')}\n"
-    summary += f"Theme: {info.get('theme', '')}\n"
+    summary += f"Theme: {info.get('theme', '')}\n\n"
 
-    if level == 'core':
+    if level == 'full':
+        # Add structure
+        structure = volume.get('structure', {})
+        if structure:
+            summary += "### 本卷结构\n"
+            if structure.get('opening'):
+                summary += f"- 开场: {structure['opening']}\n"
+            if structure.get('development'):
+                summary += f"- 发展: {structure['development']}\n"
+            if structure.get('climax'):
+                summary += f"- 高潮: {structure['climax']}\n"
+            if structure.get('ending'):
+                summary += f"- 结局: {structure['ending']}\n"
+            summary += "\n"
+
+        # Add key_plot_points if available (at full level)
+        key_plot_points = volume.get('key_plot_points', [])
+        if key_plot_points:
+            summary += "### 本卷关键情节点\n"
+            for i, point in enumerate(key_plot_points, 1):
+                summary += f"{i}. {point}\n"
+            summary += "\n"
+
+        # Add key_events if available (legacy support)
+        key_events = volume.get('key_events', [])
+        if key_events and not key_plot_points:
+            summary += "### 本卷关键事件\n"
+            for i, event in enumerate(key_events, 1):
+                summary += f"{i}. {event}\n"
+            summary += "\n"
+
+        # Add chapter_summaries if available - but only brief ones,
+        # since full chapter outline will be shown separately
+        chapter_summaries = volume.get('chapter_summaries', {})
+        if chapter_summaries:
+            summary += "### 章节概要一览\n"
+            for ch_num in sorted(chapter_summaries.keys(), key=lambda x: int(str(x))):
+                ch_summary = chapter_summaries[ch_num]
+                # Truncate long chapter summaries in volume view
+                truncated = smart_truncate(ch_summary, 100)
+                summary += f"- 第{ch_num}章: {truncated}\n"
+            summary += "\n"
+
+    elif level == 'core':
         structure = volume.get('structure', {})
         if structure.get('opening'):
             summary += f"Opening: {structure['opening']}\n"
@@ -140,16 +179,18 @@ def summarize_chapter_outline(chapter: Dict[str, Any], level: str = 'full') -> s
         summary_text = chapter.get('summary', '') or chapter.get('brief_summary', '')
         if summary_text:
             truncated_summary = smart_truncate(summary_text, max_summary_length)
-            result += f"\nSummary:\n{truncated_summary}\n"
+            result += f"\n### 本章概要\n{truncated_summary}\n"
 
-    # Add key_scenes if available
+    # Add detailed scene breakdown for writing guidance
     key_scenes = chapter.get('key_scenes', [])
     if key_scenes and level in ['core', 'full']:
-        result += "\nKey Scenes:\n"
+        result += "\n### 正文写作大纲（按顺序写作）\n"
+        result += "请按照以下场景顺序，逐段写作本章正文。每个场景要包含具体的细节描写、对话和情感表达。\n\n"
         # Limit number of scenes and truncate each
         for i, scene in enumerate(key_scenes[:max_scenes], 1):
             truncated_scene = smart_truncate(scene, max_scene_length)
-            result += f"  {i}. {truncated_scene}\n"
+            result += f"#### 场景 {i}\n"
+            result += f"{truncated_scene}\n\n"
 
         if len(key_scenes) > max_scenes:
             result += f"  ... (and {len(key_scenes) - max_scenes} more scenes)\n"
@@ -157,9 +198,23 @@ def summarize_chapter_outline(chapter: Dict[str, Any], level: str = 'full') -> s
     # Add chapter objectives/tasks if available
     objectives = chapter.get('objectives', []) or chapter.get('tasks', [])
     if objectives and level in ['core', 'full']:
-        result += "\nChapter Objectives:\n"
+        result += "\n### 本章目标\n"
         for i, obj in enumerate(objectives[:5], 1):
             result += f"  {i}. {obj}\n"
+
+    # Add must_include if available
+    must_include = chapter.get('must_include', [])
+    if must_include and level in ['core', 'full']:
+        result += "\n### 必须包含的内容\n"
+        for item in must_include:
+            result += f"- {item}\n"
+
+    # Add must_avoid if available
+    must_avoid = chapter.get('must_avoid', [])
+    if must_avoid and level in ['core', 'full']:
+        result += "\n### 必须避免的内容\n"
+        for item in must_avoid:
+            result += f"- {item}\n"
 
     return result
 
@@ -282,7 +337,7 @@ def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
     if not world_dir or not world_dir.exists():
         return None
 
-    section = "## 🌍 世界观设定（必读）\n\n"
+    section = "## 世界观设定\n\n"
     has_content = False
 
     # Title mapping for display
@@ -349,7 +404,6 @@ def load_and_format_world_specs(paths: Dict[str, Any]) -> Optional[str]:
     if not has_content:
         return None
 
-    section += "⚠️  要求：本章内容必须严格遵守以上世界观设定！\n\n"
     section += "═══════════════════════════════════════════════════════════════\n\n"
 
     return section
@@ -370,13 +424,13 @@ def load_and_format_writing_principles(paths: Dict[str, Any]) -> Optional[str]:
     if not principles:
         return None
 
-    section = "## 📝 写作原则与风格（必读）\n\n"
+    section = "## 写作原则与风格\n\n"
     has_content = False
 
     # Style description
     style = principles.get('style', {})
     if style.get('description'):
-        section += "### 整体写作风格\n"
+        section += "### 整体风格\n"
         section += style['description']
         section += "\n\n"
         has_content = True
@@ -384,7 +438,7 @@ def load_and_format_writing_principles(paths: Dict[str, Any]) -> Optional[str]:
     # Core principles (sorted by priority)
     core_principles = principles.get('core_principles', [])
     if core_principles:
-        section += "### 核心原则（按优先级）\n"
+        section += "### 核心原则\n"
         # Sort by priority if available
         sorted_principles = sorted(core_principles, key=lambda p: p.get('priority', 999))
         for i, principle in enumerate(sorted_principles, 1):
@@ -410,7 +464,7 @@ def load_and_format_writing_principles(paths: Dict[str, Any]) -> Optional[str]:
     # Taboos
     taboos = principles.get('taboos', [])
     if taboos:
-        section += "### ❌ 禁止事项\n"
+        section += "### 禁止事项\n"
         for taboo in taboos:
             section += f"- {taboo}\n"
         section += "\n"
@@ -419,7 +473,6 @@ def load_and_format_writing_principles(paths: Dict[str, Any]) -> Optional[str]:
     if not has_content:
         return None
 
-    section += "⚠️  要求：本章内容必须严格遵守以上写作原则！\n\n"
     section += "═══════════════════════════════════════════════════════════════\n\n"
 
     return section
@@ -442,21 +495,21 @@ def build_writing_prompt(
     """
     prompt = f"# 第{chapter_global_num}章写作任务\n\n"
 
-    # ========== MANDATORY REQUIREMENTS ==========
-    prompt += "## 写作要求（必须遵守）\n"
-    prompt += "1. 严格按照本章大纲和关键场景写作，不要自由发挥\n"
-    prompt += "2. 遵守 POV 角色认知约束，不要写其不知道的信息\n"
-    prompt += "3. 不要添加提示词中未提及的新情节、新角色、新设定\n"
-    prompt += "4. 只输出正文，不要任何说明、标记等过程文字\n\n"
-
-    # ========== GLOBAL WRITING REQUIREMENTS (MUST READ FIRST) ==========
+    # ========== GLOBAL WRITING GUIDELINES ==========
     prompt += "═══════════════════════════════════════════════════════════════\n"
-    prompt += "  【全局写作要求 - 必须严格遵守】\n"
+    prompt += "  【写作总纲 - 必须遵守】\n"
     prompt += "═══════════════════════════════════════════════════════════════\n\n"
+
+    # Basic rules first
+    prompt += "## 基本规则\n"
+    prompt += "1. **严格按大纲写作** - 按照本章【正文写作大纲】中的场景顺序写作\n"
+    prompt += "2. **遵守POV约束** - 只写当前POV角色知道的信息\n"
+    prompt += "3. **不添加设定外内容** - 不添加提示词中未提及的新情节、新角色\n"
+    prompt += "4. **只输出正文** - 不要任何说明、标记等过程文字\n\n"
 
     # Style info
     style = config.get('style', {})
-    prompt += "## 核心写作风格\n"
+    prompt += "## 写作风格\n"
     prompt += f"- 基调：{style.get('tone', 'N/A')}\n"
     prompt += f"- 节奏：{style.get('pacing', 'N/A')}\n"
     prompt += f"- 描写：{style.get('description', 'N/A')}\n"
@@ -468,7 +521,7 @@ def build_writing_prompt(
     # Writing requirements (from style.writing_requirements)
     writing_reqs = style.get('writing_requirements', {})
     if writing_reqs:
-        prompt += "## 写作原则（必须遵守）\n"
+        prompt += "## 写作原则\n"
         # Handle both dict and list formats
         if isinstance(writing_reqs, dict):
             for key, value in writing_reqs.items():
@@ -482,7 +535,7 @@ def build_writing_prompt(
     # Character cognition strategy
     cognition_strategy = style.get('character_cognition_strategy')
     if cognition_strategy:
-        prompt += "## 角色认知分层策略\n"
+        prompt += "## 角色认知策略\n"
         if isinstance(cognition_strategy, dict):
             for key, value in cognition_strategy.items():
                 prompt += f"- {key}: {value}\n"
@@ -493,7 +546,7 @@ def build_writing_prompt(
     # Dual-line style contrast
     dual_line_style = style.get('dual_line_style_contrast')
     if dual_line_style:
-        prompt += "## 双线风格对比\n"
+        prompt += "## 双线叙事\n"
         if isinstance(dual_line_style, dict):
             for key, value in dual_line_style.items():
                 prompt += f"- {key}: {value}\n"
@@ -529,15 +582,14 @@ def build_writing_prompt(
             knowledge_for_prompt = ck.get_character_knowledge_for_prompt(paths['info'], pov_name)
             if knowledge_for_prompt:
                 prompt += "---\n"
-                prompt += "## 📌 POV 角色认知约束（必须遵守！）\n"
-                prompt += f"**当前 POV: {pov_name}**\n\n"
+                prompt += f"## POV: {pov_name}\n"
 
                 knows = knowledge_for_prompt.get('knows', {})
 
                 # Known events
                 events = knows.get('events', [])
                 if events:
-                    prompt += "### 已知事件:\n"
+                    prompt += "### 已知事件\n"
                     for event in events:
                         prompt += f"- {event}\n"
                     prompt += "\n"
@@ -545,7 +597,7 @@ def build_writing_prompt(
                 # Known characters
                 characters = knows.get('characters', [])
                 if characters:
-                    prompt += "### 已知人物:\n"
+                    prompt += "### 已知人物\n"
                     for char in characters:
                         prompt += f"- {char}\n"
                     prompt += "\n"
@@ -553,7 +605,7 @@ def build_writing_prompt(
                 # Known world
                 world = knows.get('world', [])
                 if world:
-                    prompt += "### 已知事实:\n"
+                    prompt += "### 已知事实\n"
                     for fact in world:
                         prompt += f"- {fact}\n"
                     prompt += "\n"
@@ -561,7 +613,7 @@ def build_writing_prompt(
                 # Unaware
                 unaware = knowledge_for_prompt.get('unaware', [])
                 if unaware:
-                    prompt += "### 绝对不能写的内容（角色不知道）:\n"
+                    prompt += "### 不知道的内容（不要写）\n"
                     for item in unaware:
                         prompt += f"- {item}\n"
                     prompt += "\n"
@@ -639,12 +691,6 @@ def build_writing_prompt(
 
             prompt += anti_repeat_section
 
-    # ========== L0: Chapter info (MUST HAVE - smart summary) ==========
-    if chapter:
-        prompt += "## [L0] 本章信息（必须）\n"
-        prompt += summarize_chapter_outline(chapter, 'full')
-        prompt += "\n\n"
-
     # ========== L1: Volume & protagonist (MUST HAVE - complete) ==========
     volume = load_volume_outline(paths['outline'], volume_num)
     if volume:
@@ -652,8 +698,18 @@ def build_writing_prompt(
         prompt += summarize_volume_outline(volume, 'full')
         prompt += "\n\n"
 
-    # Final reminder
-    prompt += "现在开始写第 {} 章正文，直接从正文第一句开始写。\n".format(chapter_global_num)
+    # ========== L0: Chapter info (MUST HAVE - smart summary) ==========
+    if chapter:
+        prompt += "## [L0] 本章详细写作指南（必须严格遵守）\n"
+        prompt += summarize_chapter_outline(chapter, 'full')
+        prompt += "\n\n"
+
+    # Final reminder - keep it simple
+    prompt += "---\n\n"
+    prompt += "## 开始写作\n\n"
+    prompt += "现在请直接开始写第 {} 章正文。\n\n".format(chapter_global_num)
+    prompt += "要求：每个场景都要包含生动的细节描写、自然的对话和真实的情感表达。\n\n"
+    prompt += "正文开始：\n"
 
     return prompt
 
