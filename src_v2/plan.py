@@ -318,13 +318,14 @@ def plan_chapter(volume_num: int, chapter_num: int, paths: dict):
 
     # Check if chapter exists
     existing = load_chapter_outline(outline_dir, volume_num, chapter_num)
-    if existing:
+    # Check if existing outline has meaningful content
+    has_content = existing and any(existing.values())
+    if existing and has_content:
         if not cli.is_interactive():
-            # 在非交互模式下，直接使用已有的或自动创建
             cli.print_out(f"  {cli.c(f'Chapter {chapter_num} outline already exists, skipping', cli.Colors.YELLOW)}")
             return
-        cli.print_out(f"  {cli.c(f'Warning: Chapter {chapter_num} outline already exists', cli.Colors.YELLOW)}")
-        response = cli.input_with_default("Re-plan?", "N", arg_key="replan")
+        cli.print_out(f"  {cli.c(f'Warning: Chapter {chapter_num} outline is empty', cli.Colors.YELLOW)}")
+        response = cli.input_with_default("Re-plan?", "Y", arg_key="replan")
         if response.strip().lower() != 'y':
             cli.print_out("  Cancelled")
             return
