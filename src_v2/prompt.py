@@ -119,10 +119,10 @@ def summarize_volume_outline(volume: Dict[str, Any], level: str = 'full') -> str
                 summary += f"{i}. {event}\n"
             summary += "\n"
 
-        # Add chapter_summaries if available - but only brief ones,
-        # since full chapter outline will be shown separately
+        # Add chapter_summaries only if key_plot_points is not present
+        # (to avoid duplicate information about chapter summaries at volume level)
         chapter_summaries = volume.get('chapter_summaries', {})
-        if chapter_summaries:
+        if chapter_summaries and not key_plot_points:
             summary += "### 章节概要一览\n"
             for ch_num in sorted(chapter_summaries.keys(), key=lambda x: int(str(x))):
                 ch_summary = chapter_summaries[ch_num]
