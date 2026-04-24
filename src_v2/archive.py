@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
-from .paths import find_project_root, load_config, load_project_paths
+from .paths import find_project_root, load_config, load_project_paths, get_volume_and_chapter
 from .progress import (
     load_progress, save_progress,
     set_chapter_status, ChapterStatus,
