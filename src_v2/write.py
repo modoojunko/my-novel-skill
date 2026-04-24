@@ -149,8 +149,6 @@ def main():
             no_anti_repeat = True
         elif arg == '--volume' and i + 1 < len(sys.argv):
             volume_num = int(sys.argv[i + 1])
-            remaining_args.append(arg)
-            remaining_args.append(sys.argv[i + 1])
             i += 1
         elif arg.isdigit() and chapter_num is None:
             chapter_num = int(arg)
