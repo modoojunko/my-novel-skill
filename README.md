@@ -237,6 +237,7 @@ python /path/to/my-novel-skill/story.py status --non-interactive --json
 | `story write <num> --prompt` | 生成章节提示词 |
 | `story verify <num>` | 验证章节是否符合大纲 |
 | `story archive <num>` | 归档已完成章节 |
+| `story unarchive <num>` | 取消归档，恢复到content |
 | `story export` | 导出小说 |
 | `story publish check <platform>` | 检查平台可用性 |
 | `story publish status` | 查看发布状态 |

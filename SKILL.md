@@ -75,6 +75,7 @@ story publish N feishu 或 story publish all feishu
 | `story write <num> --prompt` | 生成章节提示词 | 准备写第N章时 |
 | `story verify <num>` | 验证章节是否符合大纲 | 第N章写完后 |
 | `story archive <num>` | 归档已完成章节 | 第N章验证通过后 |
+| `story unarchive <num>` | 取消归档，恢复到content | 重新创作已归档章节 |
 | `story export` | 导出小说 | 完成后导出 |
 | `story publish status` | 查看发布状态 | 检查哪些章节已发布 |
 | `story publish <num> feishu` | 发布单章到飞书 | 发布第N章 |
