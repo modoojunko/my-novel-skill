@@ -7,6 +7,8 @@ outline - Outline management (volume, chapter, scene formats)
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
+from .paths import find_project_root, load_config, save_config
+
 
 def load_yaml(path: Path) -> Optional[Dict[str, Any]]:
     """Load YAML file, with JSON fallback"""
@@ -146,24 +148,58 @@ def get_chapter_path(outline_dir: Path, volume_num: int, chapter_num: int) -> Pa
 
 
 def load_volume_outline(outline_dir: Path, volume_num: int) -> Optional[Dict[str, Any]]:
-    """Load a volume outline"""
+    """Load a volume outline from story.yaml, fallback to yaml file"""
+    root = find_project_root()
+    if root:
+        config = load_config(root)
+        outlines = config.get('outlines', {})
+        volumes = outlines.get('volumes', {})
+        vol_key = str(volume_num)
+        if vol_key in volumes:
+            return volumes[vol_key]
+    # Fallback to yaml file
     return load_yaml(get_volume_path(outline_dir, volume_num))
 
 
 def save_volume_outline(outline_dir: Path, volume_num: int, data: Dict[str, Any]) -> None:
-    """Save a volume outline"""
-    save_yaml(get_volume_path(outline_dir, volume_num), data)
+    """Save a volume outline to story.yaml"""
+    root = find_project_root()
+    if root:
+        config = load_config(root)
+        if 'outlines' not in config:
+            config['outlines'] = {}
+        if 'volumes' not in config['outlines']:
+            config['outlines']['volumes'] = {}
+        config['outlines']['volumes'][str(volume_num)] = data
+        save_config(root, config)
 
 
 def load_chapter_outline(outline_dir: Path, volume_num: int, chapter_num: int) -> Optional[Dict[str, Any]]:
-    """Load a chapter outline"""
+    """Load a chapter outline from story.yaml, fallback to yaml file"""
+    root = find_project_root()
+    if root:
+        config = load_config(root)
+        outlines = config.get('outlines', {})
+        chapters = outlines.get('chapters', {})
+        ch_key = f"{volume_num}-{chapter_num}"
+        if ch_key in chapters:
+            return chapters[ch_key]
+    # Fallback to yaml file
     return load_yaml(get_chapter_path(outline_dir, volume_num, chapter_num))
 
 
 def save_chapter_outline(outline_dir: Path, volume_num: int, chapter_num: int, data: Dict[str, Any]) -> None:
-    """Save a chapter outline"""
-    get_chapter_dir(outline_dir, volume_num).mkdir(parents=True, exist_ok=True)
-    save_yaml(get_chapter_path(outline_dir, volume_num, chapter_num), data)
+    """Save a chapter outline to story.yaml"""
+    root = find_project_root()
+    if root:
+        config = load_config(root)
+        if 'outlines' not in config:
+            config['outlines'] = {}
+        if 'chapters' not in config['outlines']:
+            config['outlines']['chapters'] = {}
+        ch_key = f"{volume_num}-{chapter_num}"
+        config['outlines']['chapters'][ch_key] = data
+        save_config(root, config)
 
 
 if __name__ == '__main__':
