@@ -1,3 +1,7 @@
+> **🚧 This project is archived and no longer maintained.**
+> The AI novel writing workflow has moved to **[awesome-novel-skill](https://github.com/modoojunko/awesome-novel-skill)** for continued development.
+> The new version supports a 6-phase workflow (setup → outline → prompt → write → archive → review), segment-based serial writing pipeline, AI-taste detection, and more.
+
 # AI-Assisted Novel Writing Workflow
 
 > Solving common pain points in AI novel writing: forgetting details, inconsistent settings, OOC characters, prompt truncation...

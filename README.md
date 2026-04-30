@@ -1,3 +1,7 @@
+> **🚧 本项目已归档，不再维护。**
+> AI 写小说的相关工作流已迁移至 **[awesome-novel-skill](https://github.com/modoojunko/awesome-novel-skill)** 继续演进。
+> 新版支持 6 阶段工作流（设定 → 章纲 → 提示词 → 正文 → 归档 → 评审）、segment 串行写作管线、AI 味检测等更完善的能力。
+
 # AI 辅助小说写作工作流
 
 > 解决AI写小说时的各种痛点：忘事、设定崩、角色OOC、提示词被截断……
